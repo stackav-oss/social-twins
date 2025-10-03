@@ -1,0 +1,41 @@
+# @package _global_
+defaults:
+  - train.yaml
+  - _self_
+  - analysis: tokenization
+  - visualization: viz_static
+  - override dataset: waymo_analysis.yaml
+
+# General Parameters
+task_name: 'analysis' # Reference task name
+palette: gist_ncar # Color palette
+num_batches: null # Number of batches to load for the analysis experiment. If 'null', it loads all batches.
+num_scenarios: null # Number of scenarios to consider for analysis experiment. If 'null', it loads all scenarios
+select_mode: true # If 'true' selects mode for visualization
+seed: 42 # Seed for random generators
+
+# split: train # Specify split to consider 'train', 'val' or 'test'
+# scenarios_path: ${paths.base_path}/processed/mini_causal/training # Specify path to input scenarios
+
+split: test # Specify split to consider 'train', 'val' or 'test'
+scenarios_path: ${paths.base_path}/processed/mini_causal/testing # Specify path to input scenarios
+
+# Specify name of experiment to consider
+paths:
+  # note: current teacher unmasked experiment
+  experiment_dir: causal-benchmark-labeled_scenetokens-teacher-unmasked_2025-11-07_14-51-36
+
+# Experiment Reference:
+# Wayformer Baseline on Full Mini-Causal Dataset: causal-benchmark-labeled_wayformer_2025-11-04_22-59-23
+
+# Best Student Model
+# causal-benchmark-labeled_scenetokens-student_2025-11-06_23-23-37
+
+# Old Best Student Model
+# ausal-benchmark-labeled_scenetokens-student_token-conditioning-sweep_2025-08-15_12-35-50
+
+# Best Teacher Model:
+# causal-benchmark-labeled_scenetokens-teacher_2025-11-07_14-51-36
+
+# Best Teacher-Unmasked Model:
+experiment_dir: causal-benchmark-labeled_scenetokens-teacher-unmasked_2025-11-07_14-51-36
