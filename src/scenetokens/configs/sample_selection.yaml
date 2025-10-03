@@ -1,0 +1,49 @@
+# order of defaults determines the order in which configs override each other
+defaults:
+  - train.yaml
+  - _self_
+
+task_name: "eval"
+cache: false
+run_analysis: false
+num_batches: null
+num_scenarios: null
+palette: gist_ncar
+seed: 42
+
+# Path information
+base_path: /datasets/waymo
+cache_path: ${base_path}/cache/waymo-causal-benchmark-labeled/
+batch_cache_path: ${cache_path}/batch_cache/
+batches_path: ${batch_cache_path}/${experiment_name}
+output_path: ./out/analysis/${experiment_name}
+split: train
+experiment_name: causal-benchmark-labeled_scenetokens-student_token-conditioning-sweep_2025-09-12_17-25-34 # Sample Selection Cache
+scenarios_path: ${base_path}/processed/mini_causal/training
+
+
+# Analyses
+
+# Token distribution analysis
+best_mode_only: true # if true, it only considers the token from the 'best' predicted mode
+rank_by_probability: true # if true and 'best_mode_only: false', it will ranke the tokens based on the mode probability
+
+# Dimensionality reduction analysis
+dim_reduction_algorithm: tsne # either of 'tsne' or 'umap'
+num_components: 2
+reduce: input_embedding # either of 'input_embedding' or 'quantized_embedding'
+normalize: true
+alpha_type: none # either of 'scores' or 'class_counts' or 'none'
+save_result: true
+
+# Sample selection
+selection_strategy: random # either of 'random_per_class', 'random'.
+min_percentage: 0.75
+min_percentage_per_class: 0.05 # percentage threshold to determine if dropping elements of a class
+
+tags: ["dev"]
+
+# passing checkpoint path is necessary for evaluation
+ckpt_name: null
+exp_name: ${paths.tag}_${model.config.model_name}${sweep_type}
+ckpt_path: ${paths.ckpt_path}/${exp_name}/${ckpt_name}.ckpt

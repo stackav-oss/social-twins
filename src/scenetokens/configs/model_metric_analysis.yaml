@@ -1,0 +1,29 @@
+# @package _global_
+defaults:
+  - scenario_visualization.yaml
+
+palette: muted
+
+base_path: ./out/model_comparison
+# Currently the group is created manually from MLflow -> Google Sheets -> CSV file with all metrics per experiment in
+# the group.
+group_name: normalized_quantization
+group_file: ${base_path}/${group_name}.csv
+output_path: ${base_path}/${group_name}
+
+metrics_to_compare: [
+  # Trajectory Forecasting Metrics
+  'brierFDE',
+  'minFDE6',
+  'minADE6',
+  'missRate',
+  # Causal Classification Metrics
+  'causalTP',
+  'causalTN',
+  'causalFP',
+  'causalFN',
+  'f1Score',
+  'precision',
+  'recall',
+]
+splits_to_compare: ['testing']

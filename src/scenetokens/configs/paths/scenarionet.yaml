@@ -1,0 +1,11 @@
+defaults:
+  - default.yaml
+
+base_path: /datasets/waymo
+
+train_data_path: [ "${paths.base_path}/processed/mini_scenarionet/training" ] # list of paths to the training data
+val_data_path: [ "${paths.base_path}/processed/mini_scenarionet/validation" ] # list of paths to the validation data
+test_data_path: [ "${paths.base_path}/processed/mini_scenarionet/testing" ]
+
+cache_path: /ephemeral/cache
+temp_path: "temp"

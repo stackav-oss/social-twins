@@ -1,0 +1,6 @@
+defaults:
+ - default.yaml
+
+tag: waymo-causal
+visualizer:
+  _target_: scenetokens.analysis.scenario_visualizers.waymo_causal.WaymoCausalVisualizer

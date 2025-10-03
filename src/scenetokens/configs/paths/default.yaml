@@ -1,0 +1,25 @@
+# path to root directory
+# this requires PROJECT_ROOT environment variable to exist
+# you can replace it with "." if you want the root to be the current working directory
+root_dir: ${oc.env:PROJECT_ROOT}
+tag: 'womd'
+
+base_path: ./datasets
+cache_path: /datasets/waymo/cache/
+meta_path: ${paths.root_dir}/meta
+temp_path: "temp"
+
+# path to output directory, created dynamically by hydra
+# path generation pattern is specified in `configs/hydra/default.yaml`
+# use it to store all files generated during the run, like ckpts and metrics
+output_dir: ${hydra:runtime.output_dir}
+out_dir: ${paths.root_dir}/out
+
+# path to working directory
+work_dir: ${hydra:runtime.cwd}
+
+# Temporary outputs
+log_dir: ${paths.out_dir}/logs/${scenario.dataset_name}-${paths.tag}/
+analysis_path: ${paths.cache_path}/${scenario.dataset_name}-${paths.tag}/vis
+ckpt_path: ${paths.cache_path}/${scenario.dataset_name}-${paths.tag}/ckpts # checkpoint path, used for evaluation
+batch_cache: ${paths.cache_path}/${scenario.dataset_name}-${paths.tag}/batch_cache/${exp_name}_${now:%Y-%m-%d}_${now:%H-%M-%S}

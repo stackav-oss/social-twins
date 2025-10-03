@@ -1,0 +1,6 @@
+defaults:
+ - default.yaml
+
+tag: waymo-trajpred
+visualizer:
+  _target_: scenetokens.analysis.scenario_visualizers.waymo_trajpred.WaymoTrajpredVisualizer

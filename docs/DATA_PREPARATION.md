@@ -1,0 +1,109 @@
+# Dataset Preparation
+
+## Prepare the Waymo Open Motion Dataset (WOMD)
+
+1. Create output path
+```bash
+mkdir /datasets/waymo/raw/scenario
+```
+
+2. Install [gcloud CLI](https://cloud.google.com/sdk/docs/install#deb)
+
+3. Download [Waymo Open Motion Dataset](https://scenarionet.readthedocs.io/en/latest/waymo.html#install-requirements)
+```bash
+cd /datasets/waymo/raw/scenario
+gcloud init
+gsutil -m cp -r "gs://waymo_open_dataset_motion_v_1_2_0/uncompressed/scenario/training" .
+gsutil -m cp -r "gs://waymo_open_dataset_motion_v_1_2_0/uncompressed/scenario/validation" .
+gsutil -m cp -r "gs://waymo_open_dataset_motion_v_1_2_0/uncompressed/scenario/testing" .
+```
+
+4. **[Optional]** Sample a subset of the data
+```bash
+./launch.sh
+cd scene-tokens
+uv run src/scripts/waymo_data_selection.py --parallel
+```
+
+By default it will randomly select 15% of the files within the training split and copy them to `/datasets/waymo/raw/mini`. It will also save a summary file to `./meta/waymo_mini.json`, listing selected files for reference.
+
+If disk-space is a constraint, delete the original split files:
+```bash
+cd /datasets/waymo/raw/scenario
+rm -rf *
+```
+
+5. Prepare the data for training
+
+- Using **ScenarioNet**
+```bash
+uv run python -m scenarionet.convert_waymo -d /datasets/waymo/processed/mini/testing --raw_data_path /datasets/waymo/raw/mini/testing --num_workers 64
+uv run python -m scenarionet.convert_waymo -d /datasets/waymo/processed/mini/validation --raw_data_path /datasets/waymo/raw/mini/validation --num_workers 64
+uv run python -m scenarionet.convert_waymo -d /datasets/waymo/processed/mini/training --raw_data_path /datasets/waymo/raw/mini/training --num_workers 64
+```
+
+- Using **custom processor**
+
+**NOTE:** this script was borrowed from [here](https://github.com/navarrs/ScenarioCharacterization/blob/main/src/characterization/utils/datasets/waymo_preprocess.py). **It requires Python 3.10 to run**.
+```bash
+uv run waymo_data_processing.py --raw_data_path /datasets/waymo/raw/mini --proc_data_path /datasets/waymo/processed/mini --split training
+uv run waymo_data_processing.py --raw_data_path /datasets/waymo/raw/mini --proc_data_path /datasets/waymo/processed/mini --split validation
+uv run waymo_data_processing.py --raw_data_path /datasets/waymo/raw/mini --proc_data_path /datasets/waymo/processed/mini --split testing
+```
+
+## Prepare the Causal Agents (WOMD)
+
+**NOTE:** Most of these steps require Python 3.10 to run because they depend on the `waymo_open_dataset` package.
+
+1. Download [CausalAgents](https://github.com/google-research/causal-agents/tree/main?tab=readme-ov-file) dataset:
+```bash
+mkdir /datasets/waymo/causal_agents
+cd /datasets/waymo/causal_agents
+gsutil cp -r "gs://waymo_open_dataset_causal_agents" .
+```
+
+2. Install `protobuf`.
+
+3. Get causal agents [proto](https://github.com/google-research/causal-agents/blob/main/protos/causal_labels.proto), and compile:
+```bash
+cd src/scripts/
+protoc --python_out=. causal_agents.proto
+```
+
+4. Process and verify causal agent dataset.
+
+- Verify the labels have `scenario_id` information that can be traced back to the original validation data
+and make the labels be in a format that does not depend on protobuf:
+```bash
+uv run process_causal_agents_labels.py
+```
+This script saves a summary file to `meta/summary.json` with the list and number of scenarios processed.
+
+5. **[Optional Sanity Check]**: Cross-match scenario_ids with scenario_ids in original validation set with `find_causal_agent_scenarios.py`
+```bash
+uv run find_causal_agent_scenarios.py
+```
+This scripts saves a summary file to `meta/validation_records.json` containing the list of intersecting scenarios for each record file in the validation set, as well as unlabeled scenarios and scenarios not found.
+
+6. Repeat the processing steps from the original waymo subset.
+
+- Create a uniform split with labeled (causal) data, i.e., using the validation data with:
+```bash
+uv run waymo_data_selection.py \
+    --parallel \
+    --input_data_path /datasets/waymo/raw/scenario/validation \
+    --output_dir mini_causal \
+    --percentage 1.0
+```
+
+- Prepare the data for training:
+```bash
+uv run waymo_data_processing.py --raw_data_path /datasets/waymo/raw/mini_causal --proc_data_path /datasets/waymo/processed/mini_causal --split training
+uv run waymo_data_processing.py --raw_data_path /datasets/waymo/raw/mini_causal --proc_data_path /datasets/waymo/processed/mini_causal --split validation
+uv run waymo_data_processing.py --raw_data_path /datasets/waymo/raw/mini_causal --proc_data_path /datasets/waymo/processed/mini_causal --split testing
+```
+
+7. **[Optional Sanity Check]**: Verify causal agent IDs exist in processed data:
+```bash
+uv run verify_agent_ids.py
+```

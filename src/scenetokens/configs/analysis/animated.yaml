@@ -1,0 +1,6 @@
+defaults:
+ - default.yaml
+
+tag: waymo-animated
+visualizer:
+  _target_: scenetokens.analysis.scenario_visualizers.waymo_animated.WaymoAnimatedVisualizer

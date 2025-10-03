@@ -1,0 +1,21 @@
+# @package _global_
+defaults:
+  - _self_
+  - hydra: disabled
+  - analysis: causal_animated
+  - dataset: waymo_analysis.yaml
+
+# Batches Path
+base_path: /datasets/waymo
+cache_path: ${base_path}/cache/waymo-causal-benchmark-labeled/
+experiment_name: causal-benchmark-labeled_scenetokens-teacher-quantized_100_False_past-11_fut-80_2025-08-08_20-06-40
+batch_cache_path: ${cache_path}/batch_cache/
+batches_path: ${batch_cache_path}/${experiment_name}
+split: val
+scenarios_path: ${base_path}/processed/mini_causal/validation
+output_path: ./out/analysis/${experiment_name}
+
+# seed for random number generators in pytorch, numpy and python.random
+num_batches: 100
+num_scenarios: 100
+seed: 42

@@ -1,0 +1,459 @@
+"""Utility functions to perform model analysis. See 'docs/ANALYSIS.md' for details on usage."""
+
+import pickle
+from pathlib import Path
+
+import hydra
+import matplotlib.pyplot as plt
+import numpy as np
+import numpy.typing as npt
+import pandas as pd
+import seaborn as sns
+from omegaconf import DictConfig
+from sklearn.manifold import TSNE
+
+from scenetokens import utils
+from scenetokens.schemas import output_schemas as output
+
+
+def get_scenario_classes_best_mode(
+    model_outputs: dict[str, output.ModelOutput],
+) -> tuple[npt.NDArray[np.str_], npt.NDArray[np.int64], npt.NDArray[np.float64], int]:
+    """Iterates over the model outputs and extracts the scenario class corresponding to the best predicted mode.
+
+    Args:
+        model_outputs (dict[str, output.ModelOutput]): a list of model outputs per scenario.
+
+    Returns:
+        scenario_ids (npt.NDArray[np.str_]): list of scenario IDs in the model outputs list.
+        scenario_classes (npt.NDArray[np.int64]): list of classes.
+        scenario_scores (npt.NDArray[np.float64]): list of scenario scores.
+        num_classes (int): number of scenario classes.
+    """
+    scenario_ids, scenario_classes, scenario_scores = [], [], []
+    # For each scenario, get the class corresponding to the best mode
+    for scenario_id, model_output in model_outputs.items():
+        tokenization_output = model_output.tokenization_output
+        num_classes = tokenization_output.num_tokens if tokenization_output.num_tokens != 0 else 100
+        indices = tokenization_output.token_indices.value.detach().cpu().numpy()
+
+        trajectory_decoder_output = model_output.trajectory_decoder_output
+        selected_mode = trajectory_decoder_output.mode_probabilities.value.argmax(dim=-1).detach().cpu().item()
+
+        scenario_ids.append(scenario_id)
+        scenario_classes.append(indices[selected_mode])
+        scenario_scores.append(model_output.scene_score.value.detach().cpu().item())
+
+    return np.asarray(scenario_ids), np.array(scenario_classes).reshape(-1, 1), np.array(scenario_scores), num_classes
+
+
+def get_scenario_classes_per_mode(
+    model_outputs: dict[str, output.ModelOutput], *, rank_by_probability: bool = True
+) -> tuple[npt.NDArray[np.str_], npt.NDArray[np.float64], int]:
+    """Iterates over the model outputs and extracts the scenario classes.
+
+    Args:
+        model_outputs (dict[str, output.ModelOutput]): a list of model outputs per scenario.
+        rank_by_probability (bool): if True, organizes the tokens by the probability of the modes.
+
+    Returns:
+        scenario_ids (npt.NDArray[np.str_]): numpy array of shape (num_scenarios,) containing the scenario IDs.
+        scenario_classes (npt.NDArray[np.float64]): numpy array of shape (num_scenarios, num_modes) containing the
+            scenario tokens per mode.
+        num_classes (int): number of scenario classes.
+    """
+    scenario_ids, scenario_classes = [], []
+    # For each scenario, get the class corresponding to the best mode
+    for scenario_id, model_output in model_outputs.items():
+        tokenization_output = model_output.tokenization_output
+        num_classes = tokenization_output.num_tokens if tokenization_output.num_tokens != 0 else 100
+        indices = tokenization_output.token_indices.value.detach().cpu().numpy()
+
+        if rank_by_probability:
+            trajectory_decoder_output = model_output.trajectory_decoder_output
+            modes_order = np.argsort(trajectory_decoder_output.mode_probabilities.value.detach().cpu().numpy())[::-1]
+            indices = indices[modes_order]
+
+        scenario_ids.append(scenario_id)
+        scenario_classes.append(indices)
+
+    return np.asarray(scenario_ids), np.stack(scenario_classes), num_classes
+
+
+def plot_scenario_class_distribution(
+    config: DictConfig, model_outputs: dict[str, output.ModelOutput], output_path: Path
+) -> None:
+    """Creates a histogram over the scenario classes for the given batches.
+
+    Args:
+        config (DictConfig): encapsulates model analysis configuration parameters.
+        model_outputs (dict[str, output.ModelOutput]): a list of model outputs per scenario.
+        output_path (Path): output path where visualization will be saved to.
+    """
+    if config.best_mode_only:
+        # Scenario classess shape: (num_scenarios, 1)
+        scenario_ids, scenario_classes, _, num_classes = get_scenario_classes_best_mode(model_outputs)
+    else:
+        # Scenario classess shape: (num_scenarios, num_modes)
+        scenario_ids, scenario_classes, num_classes = get_scenario_classes_per_mode(
+            model_outputs, rank_by_probability=config.rank_by_probability
+        )
+
+    num_scenarios, num_modes = scenario_classes.shape
+    unique_classes = np.unique(scenario_classes).tolist()
+    fig, axs = plt.subplots(nrows=num_modes, figsize=(len(unique_classes), 20 * num_modes))
+
+    colors = sns.color_palette(palette=config.palette, n_colors=num_classes)
+    color_map = dict(zip(unique_classes, colors, strict=False))
+
+    heatmap = np.zeros((num_modes, num_classes))
+    arange = np.arange(0, num_classes + 1)
+    sns.set_style("whitegrid")
+    for num_mode in range(num_modes):
+        scenario_classes_mode = scenario_classes[:, num_mode]
+        classes_dict = {"scenario_id": scenario_ids, "scenario_class": scenario_classes_mode}
+        classes_df = pd.DataFrame(classes_dict)
+
+        # Plot histograms
+        ax = axs[num_mode] if num_modes > 1 else axs
+        num_scenarios = classes_df.shape
+        sns.countplot(
+            ax=ax,
+            data=classes_df,
+            x="scenario_class",
+            hue="scenario_class",
+            palette=color_map,
+            edgecolor="white",
+            linewidth=1.5,
+            legend=False,
+        )
+        for container in ax.containers:
+            ax.bar_label(container, fontsize=11, fontweight="bold")
+
+        ax.set_xlabel("Scenario Class", fontsize=12, fontweight="bold", color="#2E2E2E")
+        ax.set_ylabel("Scenario Count", fontsize=12, fontweight="bold", color="#2E2E2E")
+        ax.set_title(
+            f"Scenario Class Histogram (Total {num_scenarios})", fontsize=20, fontweight="bold", color="#1F1F1F"
+        )
+        ax.tick_params(axis="x", labelsize=12, rotation=45 if len(classes_df["scenario_class"].unique()) > 5 else 0)  # noqa: PLR2004
+        ax.tick_params(axis="y", labelsize=12)
+        ax.set_axisbelow(True)
+
+        counts, _ = np.histogram(scenario_classes_mode, bins=arange)
+        heatmap[num_mode] = counts
+
+    suffix = "_best_mode" if config.best_mode_only else "_ranked_modes"
+    output_filepath = f"{output_path}/class_histogram{suffix}.png"
+    sns.despine()
+    plt.tight_layout()
+    plt.savefig(output_filepath, dpi=400)
+    plt.close()
+
+    # Plot heatmap
+    output_filepath = f"{output_path}/class_heatmap{suffix}.png"
+    plt.subplots(figsize=(2 * len(unique_classes), 5 * num_modes))
+    sns.heatmap(heatmap, xticklabels=arange, linewidth=1.0)
+    plt.tight_layout()
+    plt.savefig(output_filepath, dpi=200)
+
+    output_filepath = f"{output_path}/class_log-heatmap{suffix}.png"
+    log_heatmap = np.log10(heatmap + 1)
+    plt.subplots(figsize=(2 * len(unique_classes), 5 * num_modes))
+    sns.heatmap(log_heatmap, xticklabels=arange, linewidth=1.0)
+    plt.tight_layout()
+    plt.savefig(output_filepath, dpi=200)
+    print("\tDone")
+
+
+def compute_dimensionality_reduction(
+    config: DictConfig, model_outputs: dict[str, output.ModelOutput], output_path: Path
+) -> npt.NDArray[np.float64]:
+    """Uses a manifold learning algorithm (TSNE, UMAP) to reduce the dimensionality of the scenario embeddings.
+
+    Args:
+        config (DictConfig): encapsulates model analysis configuration parameters.
+        model_outputs (dict[str, output.ModelOutput]): a list of model outputs per scenario.
+        output_path (Path): output path where visualization will be saved to.
+
+    Returns:
+        model_results (npt.NDArray[np.float64]): a numpy array of shape (num_scenarios, config.num_components)
+            encapsulating the dimensionality reduction results.
+    """
+    algorithm = config.dim_reduction_algorithm
+    match algorithm:
+        case "tsne":
+            model = TSNE(n_components=config.num_components, random_state=config.seed)
+        case "umap":
+            from umap import UMAP  # noqa: PLC0415
+
+            model = UMAP(n_components=config.num_components, transform_seed=config.seed)
+        case _:
+            error_message = f"Algorithm: {config.dim_reduction_algorithm} not supported."
+            raise ValueError(error_message)
+
+    print(f"Computing {algorithm} analysis...")
+    print(f"\tNumber of components {config.num_components}")
+    embeddings = []
+    for model_output in model_outputs.values():
+        match config.reduce:
+            case "input_embedding":
+                embedding = model_output.tokenization_output.input_embedding.value.detach().cpu().numpy()
+            case "quantized_embedding":
+                embedding = model_output.tokenization_output.quantized_embedding.value.detach().cpu().numpy()
+            case _:
+                error_message = f"Reduce: {config.reduce} not supported"
+                raise ValueError(error_message)
+
+        if config.best_mode_only:
+            trajectory_decoder_output = model_output.trajectory_decoder_output
+            selected_mode = trajectory_decoder_output.mode_probabilities.value.argmax(dim=-1).detach().cpu().item()
+            embeddings.append(embedding[selected_mode].reshape(1, -1))
+        else:
+            embeddings.append(embedding)
+    embeddings = np.concatenate(embeddings, axis=0)
+    result = model.fit_transform(embeddings)
+
+    if config.save_result:
+        output_filepath = Path(f"{output_path}/{config.dim_reduction_algorithm}.pkl")
+        with output_filepath.open("wb") as f:
+            pickle.dump(result, f)
+
+    print("\tDone")
+    return result
+
+
+def plot_manifold_by_tokens(
+    config: DictConfig, manifold: np.ndarray, model_outputs: dict[str, output.ModelOutput], output_path: Path
+) -> None:
+    """Visualizes the manifold results colored by token IDs.
+
+    Args:
+        config (DictConfig): encapsulates model analysis configuration parameters.
+        manifold (np.ndarray): learned manifold from 'compute_dimensionality_reduction'.
+        model_outputs (dict[str, output.ModelOutput]): a list of model outputs per scenario.
+        output_path (Path): output path where visualization will be saved to.
+
+    Returns:
+        model_results (np.ndarray): a numpy array of shape (num_scenarios, config.num_components) encapsulating the
+            dimensionality reduction results.
+    """
+    print(f"Visualizing {config.dim_reduction_algorithm} tokens...")
+
+    if config.best_mode_only:
+        # Scenario classess shape: (num_scenarios, 1)
+        _, scenario_classes, _, num_classes = get_scenario_classes_best_mode(model_outputs)
+    else:
+        # Scenario classess shape: (num_scenarios, num_modes)
+        _, scenario_classes, num_classes = get_scenario_classes_per_mode(
+            model_outputs, rank_by_probability=config.rank_by_probability
+        )
+    scenario_classes = scenario_classes.reshape(-1)
+
+    # Get color map
+    unique_classes, classes_counts = np.unique(scenario_classes, return_counts=True)
+    unique_classes = unique_classes.tolist()
+    colors = sns.color_palette(palette=config.palette, n_colors=num_classes)
+    color_map = dict(zip(unique_classes, colors, strict=False))
+
+    match config.alpha_type:
+        case "class_counts":
+            class_counts = utils.minmax_scaler(classes_counts)
+            alphas = np.zeros(scenario_classes.shape, dtype=np.float32)
+            for i, scenario_class in enumerate(unique_classes):
+                idx = scenario_classes == scenario_class
+                alphas[idx] = class_counts[i]
+        case "scores":
+            scores = np.array([output.scene_score.value.detach().cpu().item() for output in model_outputs.values()])
+            alphas = utils.minmax_scaler(scores)
+        case _:
+            alphas = np.ones(scenario_classes.shape, dtype=np.float32)
+
+    # scale and move the coordinates so they fit [0; 1] range
+    tx, ty = manifold[:, 0], manifold[:, 1]
+    if config.normalize:
+        tx = utils.minmax_scaler(tx)
+        ty = utils.minmax_scaler(ty)
+
+    fig = plt.figure(dpi=1000)  # , facecolor="#444141")
+    ax = fig.add_subplot(111)
+    for label, color in color_map.items():
+        idx = scenario_classes == label
+        ax.scatter(tx[idx], ty[idx], marker=".", s=3, color=color, alpha=alphas[idx], edgecolors=color)
+
+    # for n, idx in enumerate(idx_to_highlight):
+    #     ax.scatter(tx[idx], ty[idx], marker='.', s=10, color='black', edgecolors='black')
+    #     ax.text(tx[idx], ty[idx], s=idx_tags[n], fontsize=8)
+
+    ax.axis("off")
+    plt.tight_layout()
+    suffix = f"_{config.reduce}" + ("_normalized" if config.normalize else "") + f"_{config.alpha_type}"
+    output_filepath = f"{output_path}/{config.dim_reduction_algorithm}{suffix}.png"
+    plt.savefig(output_filepath)
+    print("\tDone")
+
+
+def compute_score_analysis(
+    config: DictConfig, model_outputs: dict[str, output.ModelOutput], output_path: Path
+) -> pd.DataFrame:
+    """Uses a manifold learning algorithm (TSNE, UMAP) to reduce the dimensionality of the scenario embeddings.
+
+    Args:
+        config (DictConfig): encapsulates model analysis configuration parameters.
+        model_outputs (dict[str, output.ModelOutput]): a list of model outputs per scenario.
+        output_path (Path): output path where visualization will be saved to.
+
+    Returns:
+        score_analysis (pd.DataFrane): a dataframe containing scenario score stats per token.
+    """
+    # Get the predicted classes for the best mode
+    scenario_ids, scenario_classes, scenario_scores, _ = get_scenario_classes_best_mode(model_outputs)
+    scenario_classes = scenario_classes.squeeze(-1)
+
+    unique_classes = np.unique(scenario_classes)
+
+    score_analysis = {
+        "scenario_class": [],
+        "num_scenarios": [],
+        "max_score": [],
+        "min_score": [],
+        "mean_score": [],
+        "std_score": [],
+        "min_max_diff_score": [],
+    }
+    for percentile in config.percentiles_of_interest:
+        key = f"score_percentile_{percentile}"
+        score_analysis[key] = []
+
+    for scenario_class in unique_classes:
+        idxs = scenario_classes == scenario_class
+        num_scenarios = idxs.sum()
+        class_scores = scenario_scores[idxs]
+
+        # Add stats
+        max_score, min_score = class_scores.max(), class_scores.min()
+        score_analysis["scenario_class"].append(scenario_class)
+        score_analysis["num_scenarios"].append(num_scenarios)
+        score_analysis["max_score"].append(max_score)
+        score_analysis["min_score"].append(min_score)
+        score_analysis["mean_score"].append(class_scores.mean())
+        score_analysis["std_score"].append(class_scores.std())
+        score_analysis["min_max_diff_score"].append(max_score - min_score)
+
+        # Add percentiles
+        for percentile in config.percentiles_of_interest:
+            key = f"score_percentile_{percentile}"
+            score_analysis[key].append(np.percentile(class_scores, percentile))
+
+    score_analysis = pd.DataFrame(score_analysis)
+    output_file = Path(output_path / "scenario_score_analysis.csv")
+    score_analysis.to_csv(output_file)
+
+    return score_analysis
+
+
+def read_score_analysis(config: DictConfig) -> pd.DataFrame:
+    """Reads score analysis file.
+
+    Args:
+        config (DictConfig): encapsulates model analysis configuration parameters.
+
+    Returns:
+        score_analysis (pd.DataFrane): a dataframe containing scenario score stats per token.
+
+    Raise:
+        FileNotFoundError: if file does not exist.
+    """
+    score_analysis_path = Path(config.output_path / "scenario_score_analysis.csv")
+    if not score_analysis_path.exists():
+        error_message = f"File: {score_analysis_path} not found. Run with 'run_score_analysis=True'."
+        raise FileNotFoundError(error_message)
+    return pd.read_csv(score_analysis_path)
+
+
+def get_scenario_percentiles(
+    scenario_scores: npt.NDArray[np.float32], score_info: pd.DataFrame
+) -> npt.NDArray[np.float32]:
+    """Given a list of scenario scores and score percentile information, get the percentile to which each scenario
+    belongs to.
+
+    Args:
+        scenario_scores (npt.NDArray[np.float32]): array of N scenario scores to be assigned to a percentile.
+        score_info (pd.DataFrame): Dataframe containing score percentile information.
+
+    Returns:
+        percentiles (npt.NDArray[np.float32]): an array of N percentile assignments.
+    """
+    percentile_columns = [column for column in score_info.columns if "percentile" in column]
+    percentile_scores = score_info[percentile_columns].to_numpy().squeeze()
+    percentiles = []
+    a_max = len(percentile_columns) - 1
+    for scenario_score in scenario_scores:
+        percentile_index = np.clip(
+            np.searchsorted(percentile_scores, scenario_score, side="left"), a_min=0, a_max=a_max
+        )
+        percentiles.append(percentile_columns[percentile_index])
+    return np.asarray(percentiles)
+
+
+def plot_scenarios(
+    config: DictConfig,
+    scenario_files: dict[str, Path],
+    scenario_ids: npt.NDArray[np.str_],
+    scenario_percentiles: npt.NDArray[np.str_],
+    output_path: Path,
+) -> None:
+    """Plots scenarios by percentile.
+
+    Args:
+        config (DictConfig): encapsulates model analysis configuration parameters.
+        scenario_files (dict[str, str]): dictionary mapping scenario_ids to their corresponding filepath.
+        scenario_ids (npt.NDArray[np.str_]): scenario IDs to plot.
+        scenario_percentiles (npt.NDArray[np.str_]): array of scores corresponding to each scenario ID to plot.
+        output_path (Path): path to save the scenarios to.
+    """
+    visualizer = hydra.utils.instantiate(config.analysis.visualizer)
+    waymo_tf = hydra.utils.instantiate(config.dataset)
+    for scenario_id, scenario_percentile in zip(scenario_ids, scenario_percentiles, strict=False):
+        scenario_file = scenario_files[scenario_id]
+        with scenario_file.open("rb") as f:
+            scenario = pickle.load(f)
+        scenario = waymo_tf.repack_scenario(scenario)
+        features = waymo_tf.scenario_features_processor.compute(scenario)
+        score = waymo_tf.scenario_scores_processor.compute(scenario, features)
+
+        scenario_output_path = output_path / scenario_percentile
+        scenario_output_path.mkdir(parents=True, exist_ok=True)
+        visualizer.visualize_scenario(scenario, score, output_dir=scenario_output_path)
+
+
+def plot_tokenized_scenarios_by_score_percentile(
+    config: DictConfig, model_outputs: dict[str, output.ModelOutput], score_analysis: pd.DataFrame, output_path: Path
+) -> None:
+    """Plots tokenized scenarios by percentile.
+
+    Args:
+        config (DictConfig): encapsulates model analysis configuration parameters.
+        model_outputs (dict[str, output.ModelOutput]): a list of model outputs per scenario.
+        score_analysis (pd.DataFrame): a dataframe containing scenario score stats per token.
+        output_path (Path): output path where visualization will be saved to.
+    """
+    # Get the paths to the GT scenarios
+    scenario_files = {str(f).split("/")[-1].split(".")[0]: f for f in Path(config.scenarios_path).glob("*/*")}
+    scenario_files = {k: scenario_files[k] for k in model_outputs if scenario_files[k] is not None}
+
+    scenario_ids, scenario_classes, scenario_scores, _ = get_scenario_classes_best_mode(model_outputs)
+    scenario_classes = scenario_classes.squeeze()
+    unique_classes = np.unique(scenario_classes)
+    for scenario_class in unique_classes:
+        print(f"Running scenario token: {scenario_class}")
+        scenario_output_path = output_path / f"scenario_viz_by_percentile/{scenario_class}"
+        scenario_output_path.mkdir(parents=True, exist_ok=True)
+
+        idx = scenario_classes == scenario_class
+        class_scores = scenario_scores[idx]
+        class_scenarios_ids = scenario_ids[idx]
+
+        class_score_info = score_analysis[score_analysis.scenario_class == scenario_class]
+        class_scenario_percentiles = get_scenario_percentiles(class_scores, class_score_info)
+        # TODO: modify to use calss scores
+        plot_scenarios(config, scenario_files, class_scenarios_ids, class_scenario_percentiles, scenario_output_path)

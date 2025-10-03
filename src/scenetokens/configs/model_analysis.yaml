@@ -1,0 +1,30 @@
+# @package _global_
+defaults:
+  - scenario_visualization.yaml
+
+# seed for random number generators in pytorch, numpy and python.random
+num_batches: null
+num_scenarios: null
+palette: gist_ncar
+seed: 42
+
+# Analyses
+
+# Token distribution analysis
+run_distribution_analysis: false
+best_mode_only: true # if true, it only considers the token from the 'best' predicted mode
+rank_by_probability: true # if true and 'best_mode_only: false', it will ranke the tokens based on the mode probability
+
+# Dimensionality reduction analysis
+run_dim_reduction_analysis: false
+dim_reduction_algorithm: umap # either of 'tsne' or 'umap'
+num_components: 2
+reduce: input_embedding # either of 'input_embedding' or 'quantized_embedding'
+normalize: false
+alpha_type: scores # either of 'scores' or 'class_counts' or 'none'
+save_result: true
+
+# Score analysis
+run_score_analysis: true
+group_by_token: true # group the scenarios by predicted token
+percentiles_of_interest: [10, 25, 50, 75, 90, 95] # score percentile ranges that will be analyzed
