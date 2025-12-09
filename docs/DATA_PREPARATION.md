@@ -110,16 +110,16 @@ gsutil -m cp -r "gs://waymo_open_dataset_motion_v_1_2_0/uncompressed/scenario/va
 4. Process the scenarios:
 ```bash
 cd scene-tokens/src/scripts
-uv run waymo_data_processing.py --raw_data_path /datasets/waymo/raw/scenario/training --proc_data_path /datasets/safeshift_all --search_safeshift --safeshift_data_splits_path /datasets/mtr_process_splits --safeshift_prefix score_asym_combined_80_ --split training
-uv run waymo_data_processing.py --raw_data_path /datasets/waymo/raw/scenario/validation --proc_data_path /datasets/safeshift_all --search_safeshift --safeshift_data_splits_path /datasets/mtr_process_splits --safeshift_prefix score_asym_combined_80_ --split validation
+uv run waymo_data_processing.py --raw_data_path /datasets/waymo/raw/scenario/ --proc_data_path /datasets/safeshift_all --search_safeshift --safeshift_data_splits_path /datasets/mtr_process_splits --safeshift_prefix score_asym_combined_80_ --split training
+uv run waymo_data_processing.py --raw_data_path /datasets/waymo/raw/scenario/ --proc_data_path /datasets/safeshift_all --search_safeshift --safeshift_data_splits_path /datasets/mtr_process_splits --safeshift_prefix score_asym_combined_80_ --split validation
 ```
 
 2. Re-split the processed data:
 ```bash
 cd scene-tokens/src/scripts
-uv run resplit_safeshift.py --base_path /datasets/mtr_process_splits --proc_data_path /datasets/safeshift_all --output_path /datasets/processed/safeshift --prefix score_asym_combined_80_ --split training
-uv run resplit_safeshift.py --base_path /datasets/mtr_process_splits --proc_data_path /datasets/safeshift_all --output_path /datasets/processed/safeshift --prefix score_asym_combined_80_ --split validation
-uv run resplit_safeshift.py --base_path /datasets/mtr_process_splits --proc_data_path /datasets/safeshift_all --output_path /datasets/processed/safeshift --prefix score_asym_combined_80_ --split testing
+uv run resplit_safeshift.py --scores_path /datasets/mtr_process_splits --scenarios_path /datasets/safeshift_all --output_path /datasets/processed/safeshift --prefix score_asym_combined_80_ --split training
+uv run resplit_safeshift.py --scores_path /datasets/mtr_process_splits --scenarios_path /datasets/safeshift_all --output_path /datasets/processed/safeshift --prefix score_asym_combined_80_ --split validation
+uv run resplit_safeshift.py --scores_path /datasets/mtr_process_splits --scenarios_path /datasets/safeshift_all --output_path /datasets/processed/safeshift --prefix score_asym_combined_80_ --split testing
 ```
 Check the files inside `mtr_process_splits` for more `prefix` values allowed.
 
