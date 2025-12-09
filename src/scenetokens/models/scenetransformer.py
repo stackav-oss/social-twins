@@ -43,7 +43,7 @@ class SceneTransformer(BaseModel):
         self.apply(common.initialize_weights_with_normal)
         self.print_and_get_num_params()
 
-    def forward(self, batch: dict) -> tuple[ModelOutput, torch.Tensor]:
+    def forward(self, batch: dict) -> ModelOutput:
         """Model's forward pass.
             B: batch size
             N:  max number agents in the scene

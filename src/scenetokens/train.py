@@ -103,7 +103,7 @@ def train(cfg: DictConfig) -> tuple[dict, dict]:
 
     if cfg.get("compile"):
         log.info("Compiling model!")
-        model = torch.compile(model)
+        model = torch.compile(model)  # pyright: ignore[reportAssignmentType]
 
     log.info("Starting training!")
     trainer.fit(

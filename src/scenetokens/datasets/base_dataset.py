@@ -100,7 +100,8 @@ class BaseDataset(Dataset, ABC):
                     shutil.rmtree(self.cache_path)
                 self.cache_path.mkdir(parents=True, exist_ok=True)
 
-                process_num = os.cpu_count() // 2
+                cpu_count = os.cpu_count()
+                process_num = cpu_count // 2 if cpu_count is not None else 1
                 print(f"Using {process_num} processes to load data...")
 
                 data_splits = np.array_split(summary_list, process_num)

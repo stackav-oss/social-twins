@@ -44,6 +44,7 @@ class TrajectoryDecoder(nn.Module):
 
         # Condition the trajectory decoder on the learned tokens
         if self.token_conditioning:
+            assert num_tokens is not None, "num_tokens must be provided if token_conditioning is True."
             self.decoder_input_size = hidden_size + num_tokens
         else:
             self.decoder_input_size = hidden_size
