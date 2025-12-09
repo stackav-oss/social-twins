@@ -32,7 +32,7 @@ def get_scenario_classes_best_mode(
         scenario_scores (npt.NDArray[np.float64]): list of scenario scores.
         num_classes (int): number of scenario classes.
     """
-    scenario_ids, scenario_classes, scenario_scores = [], [], []
+    scenario_ids, scenario_classes, scenario_scores, num_classes = [], [], [], 0
     # For each scenario, get the class corresponding to the best mode
     for scenario_id, model_output in model_outputs.items():
         tokenization_output = model_output.tokenization_output
@@ -64,7 +64,7 @@ def get_scenario_classes_per_mode(
             scenario tokens per mode.
         num_classes (int): number of scenario classes.
     """
-    scenario_ids, scenario_classes = [], []
+    scenario_ids, scenario_classes, num_classes = [], [], 0
     # For each scenario, get the class corresponding to the best mode
     for scenario_id, model_output in model_outputs.items():
         tokenization_output = model_output.tokenization_output
@@ -103,7 +103,7 @@ def plot_scenario_class_distribution(
 
     num_scenarios, num_modes = scenario_classes.shape
     unique_classes = np.unique(scenario_classes).tolist()
-    fig, axs = plt.subplots(nrows=num_modes, figsize=(len(unique_classes), 20 * num_modes))
+    _, axs = plt.subplots(nrows=num_modes, figsize=(len(unique_classes), 20 * num_modes))
 
     colors = sns.color_palette(palette=config.palette, n_colors=num_classes)
     color_map = dict(zip(unique_classes, colors, strict=False))
@@ -117,7 +117,7 @@ def plot_scenario_class_distribution(
         classes_df = pd.DataFrame(classes_dict)
 
         # Plot histograms
-        ax = axs[num_mode] if num_modes > 1 else axs
+        ax = axs[num_mode] if num_modes > 1 else axs  # pyright: ignore[reportIndexIssue]
         num_scenarios = classes_df.shape
         sns.countplot(
             ax=ax,
@@ -221,7 +221,7 @@ def compute_dimensionality_reduction(
             pickle.dump(result, f)
 
     print("\tDone")
-    return result
+    return result  # pyright: ignore[reportReturnType]
 
 
 def plot_manifold_by_tokens(
@@ -308,7 +308,7 @@ def compute_score_analysis(
         score_analysis (pd.DataFrane): a dataframe containing scenario score stats per token.
     """
     # Get the predicted classes for the best mode
-    scenario_ids, scenario_classes, scenario_scores, _ = get_scenario_classes_best_mode(model_outputs)
+    _, scenario_classes, scenario_scores, _ = get_scenario_classes_best_mode(model_outputs)
     scenario_classes = scenario_classes.squeeze(-1)
 
     unique_classes = np.unique(scenario_classes)
@@ -441,7 +441,7 @@ def plot_tokenized_scenarios_by_score_percentile(
     """
     # Get the paths to the GT scenarios
     scenario_files = {str(f).split("/")[-1].split(".")[0]: f for f in Path(config.scenarios_path).glob("*/*")}
-    scenario_files = {k: scenario_files[k] for k in model_outputs if scenario_files[k] is not None}
+    scenario_files = {k: scenario_files[k] for k in model_outputs}
 
     scenario_ids, scenario_classes, scenario_scores, _ = get_scenario_classes_best_mode(model_outputs)
     scenario_classes = scenario_classes.squeeze()
@@ -505,11 +505,11 @@ def get_tokenization_groups(
     return tokenization_groups, groups_scenario_ids
 
 
-def get_group_modes(tokenization_groups: dict[int, npt.NDArray[np.float64]]) -> dict[int, npt.NDArray[np.int32]]:
+def get_group_modes(tokenization_groups: dict[int, npt.NDArray[np.float64] | None]) -> dict[int, npt.NDArray[np.int32]]:
     """Computes the modes per tokenized group.
 
     Args:
-        tokenization_groups (dict[int, npt.NDArray[np.float64]]): dictionary containing the tokenized groups.
+        tokenization_groups (dict[int, npt.NDArray[np.float64] | None]): dictionary containing the tokenized groups.
 
     Returns:
         modes (dict[int, npt.NDArray[np.int32]]): a dictionary containing the statistical mode for each token group.
@@ -523,12 +523,12 @@ def get_group_modes(tokenization_groups: dict[int, npt.NDArray[np.float64]]) -> 
 
 
 def get_group_unique(
-    tokenization_groups: dict[int, npt.NDArray[np.float64]],
+    tokenization_groups: dict[int, npt.NDArray[np.float64] | None],
 ) -> tuple[dict[int, npt.NDArray[np.int32]], dict[int, npt.NDArray[np.int32]]]:
     """Computes the unique tokens and respective counts for each of the tokenization groups.
 
     Args:
-        tokenization_groups (dict[int, npt.NDArray[np.float64]]): dictionary containing the tokenized groups.
+        tokenization_groups (dict[int, npt.NDArray[np.float64] | None]): dictionary containing the tokenized groups.
 
     Returns:
         unique (dict[int, npt.NDArray[np.int32]]: a dictionary containing per-group unique tokens.
@@ -690,7 +690,7 @@ def compute_group_uniqueness(
     group_uniqueness = np.zeros(shape=(num_tokens))
     group_vocab_counts = np.zeros(shape=(num_tokens, num_tokens))
     for n in range(num_tokens):
-        unique, counts = group_unique[n], group_counts[n]
+        unique, counts = group_unique.get(n, None), group_counts[n]
         if unique is None:
             continue
         counts = counts.astype(np.float64)
@@ -727,8 +727,8 @@ def compute_intergroup_uniqueness(
 
     intergroup_uniqueness = np.zeros(shape=(num_tokens, num_tokens))
     for (i, j), _ in np.ndenumerate(intergroup_uniqueness):
-        group_i = group_unique[i]
-        group_j = group_unique[j]
+        group_i = group_unique.get(i, None)
+        group_j = group_unique.get(j, None)
         if group_i is None or group_j is None:
             continue
         intergroup_uniqueness[i, j] = compute_jaccard_index(set(group_i.tolist()), set(group_j.tolist()))

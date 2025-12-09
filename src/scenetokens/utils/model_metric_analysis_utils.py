@@ -117,7 +117,7 @@ def sample_selection_analysis(config: DictConfig, log: Logger) -> None:
             df_melted = df_melted[~df_melted.Metric.str.contains(metric + "6")]
 
         # skip if all values are NaN
-        if df_melted["Value"].isna().all():
+        if df_melted["Value"].isna().all():  # pyright: ignore[reportGeneralTypeIssues]
             log.info("All values are NaN for split=%s, metric=%s, model=%s; skipping.", split, metric, model)
             continue
 
@@ -247,6 +247,6 @@ def model_to_model_analysis(config: DictConfig, log: Logger) -> None:  # noqa: P
         plt.tight_layout()
 
         # Show the plot
-        output_filepath = output_path / f"generalization_{split}_{metric}.png"
+        output_filepath = output_path / f"generalization_{metric}.png"
         plt.savefig(output_filepath, dpi=200)
         plt.close()

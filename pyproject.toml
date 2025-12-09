@@ -173,7 +173,6 @@ include = ["src"]
 exclude = [
   # keep-sorted start
   "**/__pycache__",
-  "src",
   "src/scenetokens/datasets/base_dataset.py",
   "src/scenetokens/models/components",
   "src/scenetokens/utils/data_utils.py",
@@ -184,3 +183,44 @@ exclude = [
   "tmp/**",
   # keep-sorted end
 ]
+ignore = ["tmp/**"]
+typeCheckingMode = "strict"
+deprecateTypingAliases = true              # Check for deprecated typing aliases
+
+# Set to false, plan to re-enable
+# keep-sorted start
+enableTypeIgnoreComments = false           # Disable support for '# type: ignore' in favor of '# pyright: ignore'
+reportArgumentType = false                 # Function call arg type mismatch
+reportAttributeAccessIssue = false         # Attribute access issue
+reportCallIssue = false                    # Wrong number of args / invalid call
+reportIncompatibleMethodOverride = false   # Subclass overrides with incompatible signature
+reportMissingParameterType = false         # Parameter missing explicit; using ruff ANN001
+reportMissingTypeArgument = false          # Generic used without type args (e.g., list vs list[int])
+reportMissingTypeStubs = false             # Report Missing stubs
+reportOptionalMemberAccess = false         # Accessing attribute on possibly None
+reportReturnType = false                   # Report return type
+reportUnknownArgumentType = false          # Argument type could not be inferred
+reportUnknownMemberType = false            # Attribute exists but type is unknown
+reportUnknownParameterType = false         # Parameter type could not be inferred
+reportUnknownVariableType = false          # Variable type could not be inferred
+reportUnusedCallResult = false             # Disable check for call statements whose return value is not None and is not used.
+reportUnusedVariable = false               # Disable check for unused variables
+# keep-sorted end
+
+# Set to "error"
+# keep-sorted start
+reportOperatorIssue = "error"              # No overloads match the provided argument
+reportOptionalOperand = "error"            # Using arithmetic/logical op on possibly None
+reportOptionalSubscript = "error"          # Indexing a possibly None value
+reportPossiblyUnboundVariable = "error"    # Variable may be used before assignment
+reportUnnecessaryComparison = "error"      # Comparison always true/false
+reportUntypedBaseClass = "error"           # Inheriting from untyped base class
+# keep-sorted end
+
+# Set to "none"
+# keep-sorted start
+reportInvalidTypeForm = "none"             # Invalid type expression (unsupported or malformed)
+reportMissingImports = "none"              # Import cannot be resolved → runtime ImportError (TODO: resolve)
+reportMissingModuleSource = "none"         # Module has stub but no source (informational only)
+reportUntypedFunctionDecorator = "none"    # Decorator has no type info
+# keep-sorted end

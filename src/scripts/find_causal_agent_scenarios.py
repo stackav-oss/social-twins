@@ -21,14 +21,16 @@ def get_record_info(record_filepath: str) -> dict[str, Any]:
     """
     record_data = tf.data.TFRecordDataset(record_filepath)
 
-    record_info = {"scenario_id": [], "scenario_num": [], "total_num_scenarios": 0}
+    record_info = {"scenario_id": [], "scenario_num": []}
+    num_total_scenarios = 0
     for num_scenario, data in enumerate(record_data):
-        record_info["total_num_scenarios"] += 1
+        num_total_scenarios += 1
         scenario = scenario_pb2.Scenario()
         scenario.ParseFromString(bytearray(data.numpy()))
 
         record_info["scenario_id"].append(scenario.scenario_id)
         record_info["scenario_num"].append(num_scenario)
+    record_info["total_num_scenarios"] = num_total_scenarios
     return record_info
 
 

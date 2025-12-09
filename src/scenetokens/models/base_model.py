@@ -75,7 +75,11 @@ class BaseModel(LightningModule, ABC):
         }
 
     def print_and_get_num_params(self) -> int:
-        """Returns the number of parameters in the model."""
+        """Returns the number of parameters in the model.
+
+        Returns:
+            total_parameters (int): total number of parameters in the model.
+        """
         trainable_parameters = 0
         nontrainable_parameters = 0
         for parameter in self.parameters():
@@ -89,6 +93,7 @@ class BaseModel(LightningModule, ABC):
         print("Total number of parameters %.2fM" % (total_parameters / MILLION))
         print("\tTrainable parameters: %.2fM" % (trainable_parameters / MILLION))
         print("\tNon-Trainable parameters: %.2fM" % (nontrainable_parameters / MILLION))
+        return total_parameters
 
     def model_step(self, batch: dict, batch_idx: int, status: str) -> torch.Tensor:
         """Takes a model step, calculates the loss value and logs model outputs.

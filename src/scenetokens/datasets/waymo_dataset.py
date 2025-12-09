@@ -22,7 +22,7 @@ class WaymoDataset(BaseDataset):
     def __init__(self, config: DictConfig) -> None:
         super().__init__(config=config)
 
-    def get_dataset_summary(self, data_path: str) -> tuple[dict, dict]:
+    def get_dataset_summary(self, data_path: str) -> tuple[list[str], dict[str, str]]:
         summary_list = []
         mapping = {}
         for sub_dir in Path(data_path).iterdir():
@@ -126,16 +126,16 @@ class WaymoDataset(BaseDataset):
             return None
         return polyline_idxs
 
-    def repack_static_map_data(self, static_map_data: dict) -> StaticMapData:
+    def repack_static_map_data(self, static_map_data: dict | None) -> StaticMapData | None:
         """Packs static map information from Waymo format to StaticMapData format.
 
         Args:
-            static_map_data (dict): dictionary containing Waymo static scenario data:
+            static_map_data (dict | None): dictionary containing Waymo static scenario data:
                 'all_polylines': contains all road data in the form of polylines in addition to specific road types (
                     'lane', 'road_line', 'road_edge', 'crosswalk', 'speed_bump', 'stop_sign')
 
         Returns:
-            StaticMapData: pydantic validator encapsulating static map information.
+            StaticMapData | None: pydantic validator encapsulating static map information.
         """
         if static_map_data is None:
             return None
