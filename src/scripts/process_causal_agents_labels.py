@@ -46,7 +46,7 @@ def run(causal_labels_filepath: Path, output_path: Path, processed_labels_path: 
         label_info["labeler_votes"] = counts.tolist()
 
         # Save label info
-        label_info_path = output_path / processed_labels_path 
+        label_info_path = output_path / processed_labels_path
         label_info_path.mkdir(parents=True, exist_ok=True)
         label_info_filepath = label_info_path / f"{scenario_id}.json"
         with label_info_filepath.open("w") as f:

@@ -3,8 +3,8 @@ import pickle
 import shutil
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
-from typing import Any
 from time import time
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -79,14 +79,16 @@ def _process_scenario(scenario_id: str, input_filepath: Path, destination_path: 
     shutil.copy(input_filepath, output_filepath)
     input_filepath.unlink()
 
+
 def _star_process_scenario(args) -> None:  # noqa: ANN001
-    """ Helper function to unpack arguments for multiprocessing.
-    
+    """Helper function to unpack arguments for multiprocessing.
+
     Args:
         args: Tuple of arguments to be passed to _process_scenario.
     """
     return _process_scenario(*args)
-    
+
+
 def run(  # noqa: PLR0913
     scores_path: Path,
     scenarios_path: Path,
@@ -106,15 +108,14 @@ def run(  # noqa: PLR0913
         num_shards: Number of shards to store the data.
         n_jobs: Number of worker processes. Defaults to all available CPU cores.
     """
-    
-    # Get the paths to all the data 
+    # Get the paths to all the data
     scenario_filepaths = {path.stem: path for path in scenarios_path.rglob("*.pkl")}
-    
+
     # Prepare the list of tasks (arguments for _process_scenario)
     tasks = []
-    
+
     # Setup paths and load metadata (Sequential part)
-    for split in ["validation","training", "testing"]:
+    for split in ["validation", "training", "testing"]:
         print(f"Processing split: {split}")
         split_infos = "test" if split == "testing" else "val" if split == "validation" else "training"
 
@@ -122,7 +123,7 @@ def run(  # noqa: PLR0913
         if not scenario_metadata_filepath.exists():
             error_message = f"Scenario metadata file not found: {scenario_metadata_filepath}"
             raise FileNotFoundError(error_message)
-        
+
         with scenario_metadata_filepath.open("rb") as f:
             scenario_metadata: list[dict[str, Any]] = pickle.load(f)
         print(f"\tLoaded {len(scenario_metadata)} scenarios from {scenario_metadata_filepath}")
@@ -151,7 +152,7 @@ def run(  # noqa: PLR0913
                     num_not_found += 1
                     continue
                 split_tasks.append((scenario_id, scenario_filepath, shard_dir))  # noqa: PERF401
-        
+
         print(f"\tTotal tasks prepared: {len(split_tasks)} for split {split}.")
         print(f"\tNumber of scenarios not found: {num_not_found} for split {split}.")
         tasks.extend(split_tasks)
@@ -169,10 +170,10 @@ def run(  # noqa: PLR0913
                 total=len(tasks),
                 desc="Processing scenarios in parallel",
             )
-        ) 
+        )
     print(f"Finished {split} split in {time() - start_time:.2f} seconds.")
 
-    print(f"Finished processing and sharding data for split.")
+    print("Finished processing and sharding data for split.")
     verify(output_path, scores_path, prefix)
 
 

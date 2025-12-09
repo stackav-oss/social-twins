@@ -104,9 +104,9 @@ lint.ignore = [
   "D104",    # pydocstyle - missing docstring in public package
   "D105",    # pydocstyle - missing docstring in magic method
   "D107",    # pydocstyle - missing docstring in init
-  "D415",    # pydocstyle - first line should end with a period
   "D203",    # pydocstyle - blank line required before class docstring
   "D205",    # pydocstyle - blank line required before class docstring
+  "D415",    # pydocstyle - first line should end with a period
   "ERA001",  # eradicate - remove commented-out code
   "FIX002",  # flake8-fixme - line contains todo
   "S101",    # use of assert detected

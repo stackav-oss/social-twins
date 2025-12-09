@@ -97,7 +97,7 @@ def run(validation_data_path: Path, summary_filepath: Path, validation_records_o
 
     # Save validation records summary
     validation_records_output_path.mkdir(parents=True, exist_ok=True)
-    validation_records_filepath = validation_records_output_path / 'validation_records.json'
+    validation_records_filepath = validation_records_output_path / "validation_records.json"
     with validation_records_filepath.open("w") as f:
         json.dump(validation_records_info, f, indent=4)
 
