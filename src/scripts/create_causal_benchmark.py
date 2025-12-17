@@ -224,7 +224,7 @@ def _create_scenario(  # noqa: PLR0913
     input_filepath: Path,
     output_path: Path,
     causal_labels_path: Path,
-    scenario_mapping: dict[str, str],
+    scenario_mapping: dict[str, dict[str, str]],
     benchmark: str,
     random_generator: Generator,
 ) -> None:
