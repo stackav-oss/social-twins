@@ -191,24 +191,24 @@ deprecateTypingAliases = true              # Check for deprecated typing aliases
 
 # Set to false, plan to re-enable
 # keep-sorted start
-enableTypeIgnoreComments = "error"           # Disable support for '# type: ignore' in favor of '# pyright: ignore'
-reportAttributeAccessIssue = false         # Attribute access issue
-reportCallIssue = false                    # Wrong number of args / invalid call
-reportIncompatibleMethodOverride = false   # Subclass overrides with incompatible signature
-reportMissingTypeArgument = false          # Generic used without type args (e.g., list vs list[int])
-reportOptionalMemberAccess = false         # Accessing attribute on possibly None
-reportUnknownArgumentType = false          # Argument type could not be inferred
-reportUnknownMemberType = false            # Attribute exists but type is unknown
-reportUnknownParameterType = false         # Parameter type could not be inferred
-reportUnknownVariableType = false          # Variable type could not be inferred
-reportUntypedBaseClass = false             # Inheriting from untyped base class
-reportUnusedCallResult = false             # Disable check for call statements whose return value is not None and is not used.
-reportUnusedVariable = false               # Disable check for unused variables
+reportCallIssue = false                    # Wrong number of args / invalid call (<10 errors)
+reportIncompatibleMethodOverride = false   # Subclass overrides with incompatible signature (<10 errors)
+reportMissingTypeArgument = false          # Generic used without type args (e.g., list vs list[int]) (<50 errors)
+reportOptionalMemberAccess = false         # Accessing attribute on possibly None (<40 errors)
+reportUnknownArgumentType = false          # Argument type could not be inferred (>400 errors)
+reportUnknownMemberType = false            # Attribute exists but type is unknown (>2000 errors)
+reportUnknownParameterType = false         # Parameter type could not be inferred (>200 errors)
+reportUnknownVariableType = false          # Variable type could not be inferred (>1000 errors)
+reportUntypedBaseClass = false             # Inheriting from untyped base class (<10 errors)
+reportUnusedCallResult = false             # Disable check for call statements whose return value is not None and is not used (<50 errors)
+reportUnusedVariable = false               # Disable check for unused variables (<10 errors)
 # keep-sorted end
 
 # Set to "error"
 # keep-sorted start
+enableTypeIgnoreComments = true            # Disable support for '# type: ignore' in favor of '# pyright: ignore'
 reportArgumentType = "error"               # Function call arg type mismatch
+reportAttributeAccessIssue = "error"       # Attribute access issue (<10 errors)
 reportMissingParameterType = "error"       # Parameter missing explicit; using ruff ANN001
 reportMissingTypeStubs = "error"           # Report Missing stubs
 reportOperatorIssue = "error"              # No overloads match the provided argument
