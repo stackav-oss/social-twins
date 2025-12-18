@@ -2,9 +2,10 @@
 
 import json
 from pathlib import Path
+from typing import Any
 
 import numpy as np
-import tensorflow as tf
+import tensorflow as tf  # pyright: ignore[reportMissingTypeStubs]
 from tqdm import tqdm
 
 from scripts import causal_labels_pb2
@@ -17,21 +18,21 @@ def run(causal_labels_filepath: Path, output_path: Path, processed_labels_path: 
     causal_labels = tf.data.TFRecordDataset(causal_labels_filepath, compression_type="")
     print("\n\nProcessing causal agents labels...")
     total_scenarios = 0
-    data_summary = {
+    data_summary: dict[str, Any] = {
         "scenario_ids": [],
         "num_scenarios": 0,
     }
     for data in tqdm(causal_labels):
         total_scenarios += 1
         labels = causal_labels_pb2.CausalLabels()
-        labels.ParseFromString(bytearray(data.numpy()))
+        labels.ParseFromString(bytearray(data.numpy()))  # pyright: ignore[reportAttributeAccessIssue]
 
         label_info = {}
-        scenario_id = labels.scenario_id
+        scenario_id = labels.scenario_id  # pyright: ignore[reportAttributeAccessIssue]
         data_summary["scenario_ids"].append(scenario_id)
         label_info["scenario_id"] = scenario_id
         label_info["labeler_results"] = {}
-        labeler_results = list(labels.labeler_results)
+        labeler_results = list(labels.labeler_results)  # pyright: ignore[reportAttributeAccessIssue]
 
         causal_agent_ids = []
         for n, labeler in enumerate(labeler_results):

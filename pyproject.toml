@@ -142,6 +142,7 @@ exclude = [
     # Files ported from other repos, minimally changed.
     "src/scenetokens/utils/data_utils.py",
     "src/scenetokens/utils/scenario_visualizers/unitraj_viz_utils.py",
+    "src/scenetokens/utils/scenario_visualizers/scenario_trajpred.py",
     "src/scenetokens/models/components",
     "src/scenetokens/datasets/base_dataset.py",
     "src/scripts/waymo_data_processing.py",
@@ -177,6 +178,7 @@ exclude = [
   "src/scenetokens/models/components",
   "src/scenetokens/utils/data_utils.py",
   "src/scenetokens/utils/instantiators.py",
+  "src/scenetokens/utils/scenario_visualizers/scenario_trajpred.py",
   "src/scenetokens/utils/scenario_visualizers/unitraj_viz_utils.py",
   "src/scripts/causal_labels_pb2.py",
   "src/scripts/waymo_data_processing.py",
@@ -186,35 +188,35 @@ exclude = [
 ignore = ["tmp/**"]
 typeCheckingMode = "strict"
 deprecateTypingAliases = true              # Check for deprecated typing aliases
+enableTypeIgnoreComments = true            # Disable support for '# type: ignore' in favor of '# pyright: ignore'
 
 # Set to false, plan to re-enable
 # keep-sorted start
-enableTypeIgnoreComments = false           # Disable support for '# type: ignore' in favor of '# pyright: ignore'
-reportArgumentType = false                 # Function call arg type mismatch
-reportAttributeAccessIssue = false         # Attribute access issue
-reportCallIssue = false                    # Wrong number of args / invalid call
-reportIncompatibleMethodOverride = false   # Subclass overrides with incompatible signature
-reportMissingParameterType = false         # Parameter missing explicit; using ruff ANN001
-reportMissingTypeArgument = false          # Generic used without type args (e.g., list vs list[int])
-reportMissingTypeStubs = false             # Report Missing stubs
-reportOptionalMemberAccess = false         # Accessing attribute on possibly None
-reportReturnType = false                   # Report return type
-reportUnknownArgumentType = false          # Argument type could not be inferred
-reportUnknownMemberType = false            # Attribute exists but type is unknown
-reportUnknownParameterType = false         # Parameter type could not be inferred
-reportUnknownVariableType = false          # Variable type could not be inferred
-reportUnusedCallResult = false             # Disable check for call statements whose return value is not None and is not used.
-reportUnusedVariable = false               # Disable check for unused variables
+reportCallIssue = false                    # Wrong number of args / invalid call (<10 errors)
+reportIncompatibleMethodOverride = false   # Subclass overrides with incompatible signature (<10 errors)
+reportMissingTypeArgument = false          # Generic used without type args (e.g., list vs list[int]) (<50 errors)
+reportOptionalMemberAccess = false         # Accessing attribute on possibly None (<40 errors)
+reportUnknownArgumentType = false          # Argument type could not be inferred (>400 errors)
+reportUnknownMemberType = false            # Attribute exists but type is unknown (>2000 errors)
+reportUnknownParameterType = false         # Parameter type could not be inferred (>200 errors)
+reportUnknownVariableType = false          # Variable type could not be inferred (>1000 errors)
+reportUntypedBaseClass = false             # Inheriting from untyped base class (<10 errors)
+reportUnusedCallResult = false             # Disable check for call statements whose return value is not None and is not used (<50 errors)
+reportUnusedVariable = false               # Disable check for unused variables (<10 errors)
 # keep-sorted end
 
 # Set to "error"
 # keep-sorted start
+reportArgumentType = "error"               # Function call arg type mismatch
+reportAttributeAccessIssue = "error"       # Attribute access issue
+reportMissingParameterType = "error"       # Parameter missing explicit; using ruff ANN001
+reportMissingTypeStubs = "error"           # Report Missing stubs
 reportOperatorIssue = "error"              # No overloads match the provided argument
 reportOptionalOperand = "error"            # Using arithmetic/logical op on possibly None
 reportOptionalSubscript = "error"          # Indexing a possibly None value
 reportPossiblyUnboundVariable = "error"    # Variable may be used before assignment
+reportReturnType = "error"                 # Report return type
 reportUnnecessaryComparison = "error"      # Comparison always true/false
-reportUntypedBaseClass = "error"           # Inheriting from untyped base class
 # keep-sorted end
 
 # Set to "none"

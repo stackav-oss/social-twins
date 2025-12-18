@@ -80,7 +80,7 @@ def _process_scenario(scenario_id: str, input_filepath: Path, destination_path: 
     input_filepath.unlink()
 
 
-def _star_process_scenario(args) -> None:  # noqa: ANN001
+def _star_process_scenario(args) -> None:  # noqa: ANN001 # pyright: ignore[reportMissingParameterType]
     """Helper function to unpack arguments for multiprocessing.
 
     Args:

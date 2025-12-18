@@ -6,6 +6,7 @@ import random
 import shutil
 import time
 from pathlib import Path
+from typing import Any
 
 from joblib import Parallel, delayed
 from tqdm import tqdm
@@ -50,7 +51,7 @@ def run(  # noqa: PLR0913
     n_selected = int(percentage * n_input_files)
     perc_selected = percentage * 100
     print(f"Input data directory has {n_input_files} files. {n_selected} ({perc_selected}%) will be selected.")
-    meta = {
+    meta: dict[str, Any] = {
         "input_data_dir": str(input_data_path),
         "total_input_files": n_input_files,
         "percentage_selected": int(perc_selected),

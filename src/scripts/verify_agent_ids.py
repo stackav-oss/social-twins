@@ -3,6 +3,7 @@
 import json
 import pickle
 from pathlib import Path
+from typing import Any
 
 from tqdm import tqdm
 
@@ -22,7 +23,7 @@ def run(input_data_path: Path, labels_path: Path, summary_path: Path) -> None:
         scenario_id = file.split("/")[-1].split(".")[0]
         scenario_dict[scenario_id] = file
 
-    valid_scenarios = {
+    valid_scenarios: dict[str, Any] = {
         "found_valid_ids": [],
         "found_invalid_ids": [],
         "not_found": [],

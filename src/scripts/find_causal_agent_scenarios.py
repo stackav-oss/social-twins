@@ -6,7 +6,7 @@ from glob import glob
 from pathlib import Path
 from typing import Any
 
-import tensorflow as tf
+import tensorflow as tf  # pyright: ignore[reportMissingTypeStubs]
 from waymo_open_dataset.protos import scenario_pb2
 
 
@@ -21,7 +21,7 @@ def get_record_info(record_filepath: str) -> dict[str, Any]:
     """
     record_data = tf.data.TFRecordDataset(record_filepath)
 
-    record_info = {"scenario_id": [], "scenario_num": []}
+    record_info: dict[str, Any] = {"scenario_id": [], "scenario_num": [], "total_num_scenarios": 0}
     num_total_scenarios = 0
     for num_scenario, data in enumerate(record_data):
         num_total_scenarios += 1
@@ -66,7 +66,7 @@ def run(validation_data_path: Path, summary_filepath: Path, validation_records_o
         summary = json.load(f)
     causal_agents_scenario_ids = summary["scenario_ids"]
 
-    validation_records_info = {
+    validation_records_info: dict[str, Any] = {
         "labeled": {},
         "unlabeled": [],
     }

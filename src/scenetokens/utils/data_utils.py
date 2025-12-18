@@ -13,7 +13,7 @@ import json
 import pickle
 from pathlib import Path
 
-
+from typing import Any
 from easydict import EasyDict
 
 from scenetokens.schemas import output_schemas as output
@@ -744,6 +744,6 @@ def get_scenario_ids(scenarios_path: str) -> list:
     return scenario_ids
 
 
-def save_cache(cache_infos: dict, filepath: str) -> None:
-    with Path(filepath).open("wb") as f:
+def save_cache(cache_infos: Any, filepath: Path) -> None:
+    with filepath.open("wb") as f:
         pickle.dump(cache_infos, f)

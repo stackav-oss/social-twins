@@ -494,15 +494,17 @@ def get_tokenization_groups(
         tokenization_groups[indices[0]].append(indices)
         groups_scenario_ids[indices[0]].append(model_output.scenario_id)
 
+    stacked_tokenization_groups: dict[int, npt.NDArray[np.int32] | None] = {}
+    stacked_groups_scenario_ids: dict[int, npt.NDArray[np.str_] | None] = {}
     for best_token, other_tokens in tokenization_groups.items():
         if len(other_tokens) == 0:
-            tokenization_groups[best_token] = None
-            groups_scenario_ids[best_token] = None
+            stacked_tokenization_groups[best_token] = None
+            stacked_groups_scenario_ids[best_token] = None
             continue
-        tokenization_groups[best_token] = np.stack(other_tokens)
-        groups_scenario_ids[best_token] = np.stack(groups_scenario_ids[best_token])
+        stacked_tokenization_groups[best_token] = np.stack(other_tokens)
+        stacked_groups_scenario_ids[best_token] = np.stack(groups_scenario_ids[best_token])
 
-    return tokenization_groups, groups_scenario_ids
+    return stacked_tokenization_groups, stacked_groups_scenario_ids
 
 
 def get_group_modes(tokenization_groups: dict[int, npt.NDArray[np.float64] | None]) -> dict[int, npt.NDArray[np.int32]]:
