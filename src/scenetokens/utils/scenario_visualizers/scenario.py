@@ -38,7 +38,8 @@ class ScenarioVisualizer(BaseVisualizer):
             raise TypeError(error_message)
 
         scenario_id = scenario.metadata.scenario_id
-        suffix = "" if scores is None else f"_{round(scores.safeshift_scores.scene_score, 2)}"
+        scene_score = BaseVisualizer.get_scenario_score(scores)
+        suffix = "" if scene_score is None else f"_{scene_score}"
         output_filepath = f"{output_dir}/{scenario_id}{suffix}.png"
         logger.info("Visualizing scenario to %s", output_filepath)
 

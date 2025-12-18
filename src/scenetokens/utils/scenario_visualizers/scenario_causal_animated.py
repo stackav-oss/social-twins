@@ -42,8 +42,13 @@ class ScenarioCausalAnimatedVisualizer(ScenarioCausalVisualizer, BaseVisualizer)
             error_message = "Scenario visualization only supported in global frame."
             raise TypeError(error_message)
 
+        if model_output is None:
+            error_message = "Model output is required for causal scenario visualization."
+            raise ValueError(error_message)
+
         scenario_id = scenario.metadata.scenario_id
-        suffix = "" if scores is None else f"_{round(scores.safeshift_scores.scene_score, 2)}"
+        scene_score = BaseVisualizer.get_scenario_score(scores)
+        suffix = "" if scene_score is None else f"_{scene_score}"
         output_filepath = f"{output_dir}/{scenario_id}_causal{suffix}.gif"
         logger.info("Visualizing scenario to %s", output_filepath)
 

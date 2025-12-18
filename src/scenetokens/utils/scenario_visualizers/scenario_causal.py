@@ -1,3 +1,4 @@
+# pyright: reportOptionalMemberAccess=false
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -45,8 +46,13 @@ class ScenarioCausalVisualizer(BaseVisualizer):
             error_message = "Scenario visualization only supported in global frame."
             raise TypeError(error_message)
 
+        if model_output is None or model_output.causal_output is None:
+            error_message = "Model output is required for causal scenario visualization."
+            raise ValueError(error_message)
+
         scenario_id = scenario.metadata.scenario_id
-        suffix = "" if scores is None else f"_{round(scores.safeshift_scores.scene_score, 2)}"
+        scene_score = BaseVisualizer.get_scenario_score(scores)
+        suffix = "" if scene_score is None else f"_{scene_score}"
         output_filepath = f"{output_dir}/{scenario_id}_causal{suffix}.png"
         logger.info("Visualizing scenario to %s", output_filepath)
 
@@ -100,6 +106,10 @@ class ScenarioCausalVisualizer(BaseVisualizer):
             start_timestep (int): starting timestep to plot the sequences.
             end_timestep (int): ending timestep to plot the sequences.
         """
+        if model_output.causal_output is None:
+            error_message = "Causal output is required for causal scenario visualization."
+            raise ValueError(error_message)
+
         agent_data = scenario.agent_data
         agent_ids = agent_data.agent_ids
         agent_types = np.asarray([atype.name for atype in agent_data.agent_types])

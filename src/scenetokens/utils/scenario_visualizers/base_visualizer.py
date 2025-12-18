@@ -73,6 +73,22 @@ class BaseVisualizer(ABC):
         # By default, we visualize scenarios in global frame.
         return self.config.get("is_ego_centric", False)
 
+    @staticmethod
+    def get_scenario_score(scores: ScenarioScores | None) -> float | None:
+        """Gets the scene score from the ScenarioScores.
+
+        Args:
+            scores (ScenarioScores | None): encapsulates the scenario and agent scores.
+
+        Return:
+            float | None: the scene score if available, otherwise None.
+        """
+        return (
+            None
+            if scores is None or scores.safeshift_scores is None or scores.safeshift_scores.scene_score is None
+            else round(scores.safeshift_scores.scene_score, 2)
+        )
+
     def plot_map_data(self, ax: Axes, scenario: Scenario, num_windows: int = 1) -> None:
         """Plots the map data.
 
