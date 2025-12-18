@@ -188,6 +188,7 @@ exclude = [
 ignore = ["tmp/**"]
 typeCheckingMode = "strict"
 deprecateTypingAliases = true              # Check for deprecated typing aliases
+enableTypeIgnoreComments = true            # Disable support for '# type: ignore' in favor of '# pyright: ignore'
 
 # Set to false, plan to re-enable
 # keep-sorted start
@@ -206,9 +207,8 @@ reportUnusedVariable = false               # Disable check for unused variables 
 
 # Set to "error"
 # keep-sorted start
-enableTypeIgnoreComments = true            # Disable support for '# type: ignore' in favor of '# pyright: ignore'
 reportArgumentType = "error"               # Function call arg type mismatch
-reportAttributeAccessIssue = "error"       # Attribute access issue (<10 errors)
+reportAttributeAccessIssue = "error"       # Attribute access issue
 reportMissingParameterType = "error"       # Parameter missing explicit; using ruff ANN001
 reportMissingTypeStubs = "error"           # Report Missing stubs
 reportOperatorIssue = "error"              # No overloads match the provided argument
