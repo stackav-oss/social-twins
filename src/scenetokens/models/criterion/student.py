@@ -12,16 +12,16 @@ class Student(Criterion):
         self.reconstruction_criterion = Reconstruction(config)
         self.trajpred_criterion = TrajectoryPrediction(config)
 
-    def forward(self, outputs: ModelOutput) -> torch.Tensor:
+    def forward(self, model_output: ModelOutput) -> torch.Tensor:
         """Computes the Quantized Student loss which combines the quantizatio loss from the scenario classifier and the
         trajectory predicton loss from the scenario decder.
 
         Args:
-            outputs (ModelOutput): pydantic validator for model outputs.
+            model_output (ModelOutput): pydantic validator for model outputs.
 
         Returns:
             loss (torch.tensor): loss value.
         """
-        reconstruction_loss = self.reconstruction_criterion(outputs)
-        trajpred_loss = self.trajpred_criterion(outputs)
+        reconstruction_loss = self.reconstruction_criterion(model_output)
+        trajpred_loss = self.trajpred_criterion(model_output)
         return (reconstruction_loss + trajpred_loss).mean()

@@ -34,26 +34,26 @@ class Reconstruction(Criterion):
             return loss + self.tokenization_weight * tokenization_loss.value
         return loss
 
-    def forward(self, outputs: ModelOutput) -> torch.Tensor:
+    def forward(self, model_output: ModelOutput) -> torch.Tensor:
         """Quantization Loss
            B: batch size
            Q: number of queries
            C: number of tokens/classes
 
         Args:
-            outputs (ModelOutput): pydantic validator for model outputs.
+            model_output (ModelOutput): pydantic validator for model outputs.
 
         Returns:
             loss (torch.tensor): loss value.
         """
         scenario_tokenization_loss = None
-        if outputs.tokenization_output is not None:
-            scenario_tokenization_loss = self.compute_tokenization_reconstruction(outputs.tokenization_output)
+        if model_output.tokenization_output is not None:
+            scenario_tokenization_loss = self.compute_tokenization_reconstruction(model_output.tokenization_output)
 
         # If training with the teacher, include the causal tokenization reconstruction.
         causal_tokenization_loss = None
-        if outputs.causal_tokenization_output is not None:
-            causal_tokenization_loss = self.compute_tokenization_reconstruction(outputs.causal_tokenization_output)
+        if model_output.causal_tokenization_output is not None:
+            causal_tokenization_loss = self.compute_tokenization_reconstruction(model_output.causal_tokenization_output)
 
         assert (scenario_tokenization_loss is not None) or (causal_tokenization_loss is not None), (
             "Disable reconstruction loss if both thare are no tokenization outputs."

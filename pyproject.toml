@@ -193,7 +193,7 @@ enableTypeIgnoreComments = true            # Disable support for '# type: ignore
 
 # Set to false, plan to re-enable
 # keep-sorted start
-reportIncompatibleMethodOverride = false   # Subclass overrides with incompatible signature (<10 errors)
+reportIncompatibleMethodOverride = "error"   # Subclass overrides with incompatible signature (<10 errors)
 reportMissingTypeArgument = false          # Generic used without type args (e.g., list vs list[int]) (<50 errors)
 reportOptionalMemberAccess = false         # Accessing attribute on possibly None (<40 errors)
 reportUnknownArgumentType = false          # Argument type could not be inferred (>400 errors)

@@ -23,17 +23,17 @@ class Teacher(Criterion):
         self.use_focal_loss = config.get("use_focal_loss", False)
         self.classification_loss = FocalClassification(config) if self.use_focal_loss else Classification(config)
 
-    def forward(self, outputs: ModelOutput) -> torch.Tensor:
+    def forward(self, model_output: ModelOutput) -> torch.Tensor:
         """Computes the Quantized Teacher loss which combines the quantizatio loss from scenario and agent tokenization,
         the trajectory prediction loss and the mask classifier loss.
 
         Args:
-            outputs (ModelOutput): pydantic validator for model outputs.
+            model_output (ModelOutput): pydantic validator for model outputs.
 
         Returns:
             loss (torch.tensor): loss value.
         """
-        reconstruction_loss = self.reconstruction_criterion(outputs)
-        trajpred_loss = self.trajpred_criterion(outputs)
-        classification_loss = self.classification_loss(outputs)
+        reconstruction_loss = self.reconstruction_criterion(model_output)
+        trajpred_loss = self.trajpred_criterion(model_output)
+        classification_loss = self.classification_loss(model_output)
         return (reconstruction_loss + trajpred_loss + classification_loss).mean()
