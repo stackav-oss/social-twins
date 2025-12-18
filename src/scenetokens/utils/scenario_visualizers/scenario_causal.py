@@ -1,5 +1,3 @@
-from typing import Any
-
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -9,7 +7,7 @@ from characterization.utils.io_utils import get_logger
 from matplotlib.axes import Axes
 from omegaconf import DictConfig
 
-from scenetokens.schemas import ModelOutput
+from scenetokens.schemas import AgentCentricScenario, ModelOutput
 from scenetokens.utils.constants import MIN_VALID_POINTS, CausalOutputType
 from scenetokens.utils.scenario_visualizers.base_visualizer import BaseVisualizer
 
@@ -23,7 +21,7 @@ class ScenarioCausalVisualizer(BaseVisualizer):
 
     def visualize_scenario(
         self,
-        scenario: Scenario | dict[str, Any],
+        scenario: Scenario | AgentCentricScenario,
         scores: ScenarioScores | None = None,
         model_output: ModelOutput | None = None,
         output_dir: str = "temp",
@@ -38,7 +36,7 @@ class ScenarioCausalVisualizer(BaseVisualizer):
             window 4: displays the scene with each agent in a different color, based on it's learned tokenization.
 
         Args:
-            scenario (Scenario): encapsulates the scenario to visualize.
+            scenario (Scenario | AgentCentricScenario): encapsulates the scenario to visualize.
             scores (ScenarioScores | None): encapsulates the scenario and agent scores.
             model_output (ModelOutput | None): encapsulates model outputs.
             output_dir: (str): the directory where to save the scenario visualization.
