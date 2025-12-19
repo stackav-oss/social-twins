@@ -100,4 +100,4 @@ def main(cfg: DictConfig) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main()  # pyright: ignore[reportCallIssue]

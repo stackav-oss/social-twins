@@ -1,11 +1,9 @@
-from typing import Any
-
 import matplotlib.pyplot as plt
 from characterization.schemas import Scenario, ScenarioScores
 from characterization.utils.io_utils import get_logger
 from omegaconf import DictConfig
 
-from scenetokens.schemas import ModelOutput
+from scenetokens.schemas import AgentCentricScenario, ModelOutput
 from scenetokens.utils.scenario_visualizers.base_visualizer import BaseVisualizer
 
 
@@ -18,7 +16,7 @@ class ScenarioAnimatedVisualizer(BaseVisualizer):
 
     def visualize_scenario(
         self,
-        scenario: Scenario | dict[str, Any],
+        scenario: Scenario | AgentCentricScenario,
         scores: ScenarioScores | None = None,
         model_output: ModelOutput | None = None,  # noqa: ARG002
         output_dir: str = "temp",
@@ -28,7 +26,7 @@ class ScenarioAnimatedVisualizer(BaseVisualizer):
         ScenarioAnimatedVisualizer visualizes the scenario as an per-timestep animation.
 
         Args:
-            scenario (Scenario): encapsulates the scenario to visualize.
+            scenario (Scenario | AgentCentricScenario): encapsulates the scenario to visualize.
             scores (ScenarioScores | None): encapsulates the scenario and agent scores.
             model_output (ModelOutput | None): encapsulates model outputs.
             output_dir: (str): the directory where to save the scenario visualization.
@@ -38,8 +36,9 @@ class ScenarioAnimatedVisualizer(BaseVisualizer):
             raise TypeError(error_message)
 
         scenario_id = scenario.metadata.scenario_id
-        scenario_scores = round(scores.safeshift_scores.scene_score, 2)
-        output_filepath = f"{output_dir}/{scenario_id}_{scenario_scores}.gif"
+        scene_score = BaseVisualizer.get_scenario_score(scores)
+        suffix = "" if scene_score is None else f"_{scene_score}"
+        output_filepath = f"{output_dir}/{scenario_id}{suffix}.gif"
         logger.info("Visualizing scenario to %s", output_filepath)
 
         total_timesteps = scenario.metadata.track_length

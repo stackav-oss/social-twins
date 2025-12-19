@@ -13,18 +13,18 @@ class Classification(Criterion):
 
         self.loss_function = torch.nn.CrossEntropyLoss(reduction="none")
 
-    def forward(self, outputs: ModelOutput) -> torch.Tensor:
+    def forward(self, model_output: ModelOutput) -> torch.Tensor:
         """Computes the Binary Cross Entropy loss for the causal values.
            B: batch size
            C: number of classes
 
         Args:
-            outputs (ModelOutput): pydantic validator for model outputs.
+            model_output (ModelOutput): pydantic validator for model outputs.
 
         Returns:
             loss (torch.tensor): loss value.
         """
-        causal_output = outputs.causal_output
+        causal_output = model_output.causal_output
 
         # Target has shape (B, N)
         gt = causal_output.causal_gt.value.view(-1).long()
@@ -54,19 +54,19 @@ class FocalClassification(Criterion):
             self.alpha = torch.tensor([self.alpha] * self.num_classes, dtype=torch.float32)
         self.loss_function = torch.nn.CrossEntropyLoss(reduction="none")
 
-    def forward(self, outputs: ModelOutput) -> torch.Tensor:
+    def forward(self, model_output: ModelOutput) -> torch.Tensor:
         """Computes the focal loss which is the binary cross entropy loss for imbalanced classes. It focuses on
             missclassified elements. Reference: https://arxiv.org/pdf/1708.02002
             B: batch size
             C: number of tokens/classes
 
         Args:
-            outputs (ModelOutput): pydantic validator for model outputs.
+            model_output (ModelOutput): pydantic validator for model outputs.
 
         Returns:
             loss (torch.tensor): loss value.
         """
-        causal_output = outputs.causal_output
+        causal_output = model_output.causal_output
 
         # Target has shape (B, N)
         gt = causal_output.causal_gt.value.view(-1).long()

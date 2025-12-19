@@ -1,5 +1,4 @@
-from typing import Any
-
+# pyright: reportOptionalMemberAccess=false
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -9,7 +8,7 @@ from characterization.utils.io_utils import get_logger
 from matplotlib.axes import Axes
 from omegaconf import DictConfig
 
-from scenetokens.schemas import ModelOutput
+from scenetokens.schemas import AgentCentricScenario, ModelOutput
 from scenetokens.utils.constants import MIN_VALID_POINTS, CausalOutputType
 from scenetokens.utils.scenario_visualizers.base_visualizer import BaseVisualizer
 
@@ -23,7 +22,7 @@ class ScenarioCausalVisualizer(BaseVisualizer):
 
     def visualize_scenario(
         self,
-        scenario: Scenario | dict[str, Any],
+        scenario: Scenario | AgentCentricScenario,
         scores: ScenarioScores | None = None,
         model_output: ModelOutput | None = None,
         output_dir: str = "temp",
@@ -38,7 +37,7 @@ class ScenarioCausalVisualizer(BaseVisualizer):
             window 4: displays the scene with each agent in a different color, based on it's learned tokenization.
 
         Args:
-            scenario (Scenario): encapsulates the scenario to visualize.
+            scenario (Scenario | AgentCentricScenario): encapsulates the scenario to visualize.
             scores (ScenarioScores | None): encapsulates the scenario and agent scores.
             model_output (ModelOutput | None): encapsulates model outputs.
             output_dir: (str): the directory where to save the scenario visualization.
@@ -47,8 +46,13 @@ class ScenarioCausalVisualizer(BaseVisualizer):
             error_message = "Scenario visualization only supported in global frame."
             raise TypeError(error_message)
 
+        if model_output is None or model_output.causal_output is None:
+            error_message = "Model output is required for causal scenario visualization."
+            raise ValueError(error_message)
+
         scenario_id = scenario.metadata.scenario_id
-        suffix = "" if scores is None else f"_{round(scores.safeshift_scores.scene_score, 2)}"
+        scene_score = BaseVisualizer.get_scenario_score(scores)
+        suffix = "" if scene_score is None else f"_{scene_score}"
         output_filepath = f"{output_dir}/{scenario_id}_causal{suffix}.png"
         logger.info("Visualizing scenario to %s", output_filepath)
 
@@ -102,6 +106,10 @@ class ScenarioCausalVisualizer(BaseVisualizer):
             start_timestep (int): starting timestep to plot the sequences.
             end_timestep (int): ending timestep to plot the sequences.
         """
+        if model_output.causal_output is None:
+            error_message = "Causal output is required for causal scenario visualization."
+            raise ValueError(error_message)
+
         agent_data = scenario.agent_data
         agent_ids = agent_data.agent_ids
         agent_types = np.asarray([atype.name for atype in agent_data.agent_types])

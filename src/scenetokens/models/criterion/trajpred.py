@@ -21,12 +21,12 @@ class TrajectoryPrediction(Criterion):
         self.square_gmm_size = 3
         self.nonsquare_gmm_size = 5  # (µ_x, µ_y, sig_x, sig_y, p)
 
-    def forward(self, outputs: ModelOutput) -> torch.Tensor:
+    def forward(self, model_output: ModelOutput) -> torch.Tensor:
         """GMM Loss
             B: batch_size, M: number of modes, F: number of future steps, D = 5: gmm dimensions
 
         Args:
-            outputs (ModelOutput): dictionary containing tensor elements needed to compute the loss function.
+            model_output (ModelOutput): dictionary containing tensor elements needed to compute the loss function.
                 - predicted_trajectory (torch.tensor(B, M, F, D=5)): decoded trajectories, D=5 is the distribution.
                 - predicted_probability (torch.tensor(B, M)): mode's predicted probability.
                 - gt_trajectory (torch.tensor(B, F, D=2)): ground truth trajectories, where D=2 is (x, y)
@@ -35,12 +35,12 @@ class TrajectoryPrediction(Criterion):
             loss (torch.tensor): loss value.
         """
         # Predicted scores for each trajectory shape: (B, num_modes)
-        trajectory_decoder_output = outputs.trajectory_decoder_output
+        trajectory_decoder_output = model_output.trajectory_decoder_output
         pred_scores = trajectory_decoder_output.mode_logits.value
         # Predicted trajectories shape: (B, num_modes, future_len, 5)
         pred_trajs = trajectory_decoder_output.decoded_trajectories.value
         # Ground truth trajectories shape: (B, num_modes)
-        gt_trajs = outputs.future_ground_truth.value
+        gt_trajs = model_output.future_ground_truth.value
 
         if self.use_square_gmm:
             assert pred_trajs.shape[-1] == self.square_gmm_size

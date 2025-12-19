@@ -97,6 +97,7 @@ lint.ignore = [
   "D205",    # pydocstyle - blank line required before class docstring
   "D415",    # pydocstyle - first line should end with a period
   "ERA001",  # eradicate - remove commented-out code
+  "F401",    # imported but unused (since pyright reportUnusedImport is enabled)
   "F841",    # local variable assigned but not used (since pyright reportUnusedVariable is enabled)
   "FIX002",  # flake8-fixme - line contains todo
   "S101",    # use of assert detected
@@ -192,10 +193,8 @@ enableTypeIgnoreComments = true            # Disable support for '# type: ignore
 
 # Set to false, plan to re-enable
 # keep-sorted start
-reportCallIssue = false                    # Wrong number of args / invalid call (<10 errors)
-reportIncompatibleMethodOverride = false   # Subclass overrides with incompatible signature (<10 errors)
 reportMissingTypeArgument = false          # Generic used without type args (e.g., list vs list[int]) (<50 errors)
-reportOptionalMemberAccess = false         # Accessing attribute on possibly None (<40 errors)
+reportOptionalMemberAccess = false         # Accessing attribute on possibly None (<30 errors)
 reportUnknownArgumentType = false          # Argument type could not be inferred (>400 errors)
 reportUnknownMemberType = false            # Attribute exists but type is unknown (>2000 errors)
 reportUnknownParameterType = false         # Parameter type could not be inferred (>200 errors)
@@ -209,6 +208,8 @@ reportUnusedVariable = false               # Disable check for unused variables 
 # keep-sorted start
 reportArgumentType = "error"               # Function call arg type mismatch
 reportAttributeAccessIssue = "error"       # Attribute access issue
+reportCallIssue = "error"                  # Wrong number of args / invalid call
+reportIncompatibleMethodOverride = "error" # Subclass overrides with incompatible signature (<10 errors)
 reportMissingParameterType = "error"       # Parameter missing explicit; using ruff ANN001
 reportMissingTypeStubs = "error"           # Report Missing stubs
 reportOperatorIssue = "error"              # No overloads match the provided argument

@@ -161,4 +161,4 @@ def main(cfg: DictConfig) -> float | None:
 
 
 if __name__ == "__main__":
-    main()
+    main()  # pyright: ignore[reportCallIssue]

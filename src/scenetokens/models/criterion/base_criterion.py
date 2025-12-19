@@ -12,5 +12,5 @@ class Criterion(nn.Module, ABC):
         self.config = config
 
     @abstractmethod
-    def forward(self, inputs: ModelOutput) -> Tensor:
+    def forward(self, model_output: ModelOutput) -> Tensor:
         """Computes the loss function."""
