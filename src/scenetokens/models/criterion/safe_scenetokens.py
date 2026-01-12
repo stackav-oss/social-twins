@@ -2,28 +2,28 @@ import torch
 from omegaconf import DictConfig
 
 from scenetokens.models.criterion import (
-    CausalClassification,
     Criterion,
-    FocalCausalClassification,
     Reconstruction,
+    SafetyClassification,
     TrajectoryPrediction,
 )
 from scenetokens.schemas.output_schemas import ModelOutput
 
 
-class Teacher(Criterion):
+class SafeSceneTokens(Criterion):
     def __init__(self, config: DictConfig) -> None:
         super().__init__(config=config)
 
         self.reconstruction_criterion = Reconstruction(config)
         self.trajpred_criterion = TrajectoryPrediction(config)
 
-        # Classification loss is used for causal agent prediction. If 'use_focal_loss' will use FocalClassification
-        # which focuses on imbalanced classes
-        self.use_focal_loss = config.get("use_focal_loss", False)
-        self.classification_loss = (
-            FocalCausalClassification(config) if self.use_focal_loss else CausalClassification(config)
-        )
+        # Classification loss is used for safety agent predictions
+        config.safety_type = "individual"
+        config.classification_weight = config.get("individual_classification_weight", 1.0)
+        self.individual_safety_loss = SafetyClassification(config)
+        config.safety_type = "interaction"
+        config.classification_weight = config.get("interaction_classification_weight", 1.0)
+        self.interaction_safety_loss = SafetyClassification(config)
 
     def forward(self, model_output: ModelOutput) -> torch.Tensor:
         """Computes the Quantized Teacher loss which combines the quantizatio loss from scenario and agent tokenization,
@@ -37,5 +37,6 @@ class Teacher(Criterion):
         """
         reconstruction_loss = self.reconstruction_criterion(model_output)
         trajpred_loss = self.trajpred_criterion(model_output)
-        classification_loss = self.classification_loss(model_output)
-        return (reconstruction_loss + trajpred_loss + classification_loss).mean()
+        individual_safety_loss = self.individual_safety_loss(model_output)
+        interaction_safety_loss = self.interaction_safety_loss(model_output)
+        return (reconstruction_loss + trajpred_loss + individual_safety_loss + interaction_safety_loss).mean()

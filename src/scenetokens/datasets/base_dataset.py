@@ -18,10 +18,11 @@ from torch.utils.data import Dataset
 
 from scenetokens.utils import data_utils
 from scenetokens.utils.constants import BIG_EPSILON, DataSplits, SampleSelection
-# from characterization.features.safeshift_features import SafeShiftFeatures
-# from characterization.scorer.safeshift_scorer import SafeShiftScorer
-from characterization.schemas import Scenario, AgentData, TracksToPredict, StaticMapData, ScenarioMetadata
+from characterization.features.safeshift_features import SafeShiftFeatures
+from characterization.scorer.safeshift_scorer import SafeShiftScorer
+from characterization.schemas import Scenario, AgentData, TracksToPredict, StaticMapData, ScenarioMetadata, ScenarioScores
 from characterization.utils.common import AgentType, AgentTrajectoryMasker
+from characterization.utils.geometric_utils import find_closest_lanes, find_conflict_points
 
 class BaseDataset(Dataset, ABC):
     """Base dataset loader class for trajectory datasets."""
@@ -39,9 +40,24 @@ class BaseDataset(Dataset, ABC):
         self.total_steps = self.past_len + self.future_len
         self.subset_data_tag = None
 
-        # Scenario characterizers
-        # self.scenario_features_processor = SafeShiftFeatures(config.scenario_characterization)
-        # self.scenario_scores_processor = SafeShiftScorer(config.scenario_characterization)
+        # Scenario characterization
+        self.autolabel_agents = self.config.get("autolabel_agents", False)
+        self.conflict_points_config = self.config.get("conflict_points", None)
+        self.closest_lanes_config = self.config.get("closest_lanes", None)
+
+        self.scenario_features_processor, self.scenario_scores_processor = None, None
+        scenario_characterization_config = self.config.get("scenario_characterization", None)
+        if self.autolabel_agents:
+            if self.conflict_points_config is None or self.closest_lanes_config is None:
+                error_message = "autolabel_agents is True but conflict_points or closest_lanes config is missing."
+                raise ValueError(error_message)
+
+            if scenario_characterization_config is None:
+                error_message = "autolabel_agents is True but scenario_characterization config is missing."
+                raise ValueError(error_message)
+
+            self.scenario_features_processor = SafeShiftFeatures(scenario_characterization_config)
+            self.scenario_scores_processor = SafeShiftScorer(scenario_characterization_config)
 
         if self.config.load_data:
             match self.split:
@@ -193,35 +209,73 @@ class BaseDataset(Dataset, ABC):
                 del output
         return file_list
 
-    def process_scenario(self, data_path: str, mapping: dict, file_name: str) -> dict | None:
+    def compute_scenario_map_metadata(self, scenario: Scenario) -> Scenario:
+        """Computes map-related metadata for the scenario, such as conflict points and closest lanes.
+
+        Args:
+            scenario (Scenario): The input scenario for which to compute map metadata.
+
+        Returns:
+            Scenario: The scenario with updated map metadata.
+        """
+        # Compute conflict point information from static map data
+        conflict_points_info = find_conflict_points(
+            scenario,
+            resample_factor=self.conflict_points_config.get("resample_factor", 1),
+            intersection_threshold=self.conflict_points_config.get("intersection_threshold", 0.5),
+            return_static_conflict_points=self.conflict_points_config.get("return_static_conflict_points", False),
+            return_lane_conflict_points=self.conflict_points_config.get("return_lane_conflict_points", False),
+            return_dynamic_conflict_points=self.conflict_points_config.get("return_dynamic_conflict_points", False),
+        )
+        agent_distances_to_conflict_points, conflict_points = None, None
+        if conflict_points_info is not None:
+            agent_distances_to_conflict_points = (
+                None
+                if conflict_points_info["agent_distances_to_conflict_points"] is None
+                else conflict_points_info["agent_distances_to_conflict_points"][:, : self.total_steps, :]
+            )
+            conflict_points = (
+                None
+                if conflict_points_info["all_conflict_points"] is None else conflict_points_info["all_conflict_points"]
+            )
+            scenario.static_map_data.map_conflict_points = conflict_points
+            scenario.static_map_data.agent_distances_to_conflict_points = agent_distances_to_conflict_points
+
+        # Compute closest lane information
+        closest_lanes_info = find_closest_lanes(
+            scenario,
+            k_closest=self.closest_lanes_config.get("num_lanes", 16),
+            threshold_distance=self.closest_lanes_config.get("threshold_distance", 10.0),
+            subsample_factor=self.closest_lanes_config.get("subsample_factor", 2),
+        )
+        if closest_lanes_info is not None:
+            agent_closest_lanes = closest_lanes_info["agent_closest_lanes"][:, : self.total_steps, :, :]
+            scenario.static_map_data.agent_closest_lanes = agent_closest_lanes
+
+        return scenario
+
+    def process_scenario(self, data_path: str, mapping: dict, file_name: str) -> list[dict[str, Any]] | None:
         """Reads and processes a custom scenario."""
         scenario = self.read_scenario(data_path, mapping, file_name)
         # TODO: resolve bare except from Unitraj.
+        # breakpoint()
         try:
             # Repack custom format into an intermediate general, format defined by 'Scenario'
             scenario = self.repack_scenario(scenario)
-
-            # Compute SafeShift's scenario characterizations.
-            # NOTE: Currently, they're computed from the global scenario representation.
-            # scenario_features = self.scenario_features_processor.compute(scenario)
-
-            # TODO: enable score re-computation with dynamic agent of interest
-            # scenario_scores = self.scenario_scores_processor.compute(scenario, scenario_features)
+            scenario_scores = None
+            if self.autolabel_agents:
+                scenario = self.compute_scenario_map_metadata(scenario)
+                scenario_features = self.scenario_features_processor.compute(scenario)
+                scenario_scores = self.scenario_scores_processor.compute(scenario, scenario_features)
 
             # Process intermediate format into final format.
             # NOTE: currently, this is Unitraj's scenario representation. It returns a dictionary not a schema as above.
-            scenario = self.process_agent_centric_scenario(scenario)
+            scenario = self.process_agent_centric_scenario(scenario, scenario_scores=scenario_scores)
 
             # Compute Unitraj's characterizations: Kalman Difficulty and Trajectory Type features.
             # NOTE: Currently, they're derived from the agent-centric scenario representation. Later on they'll get
             # moved to ScenarioCharacterization.
             scenario = self.characterize_scenario(scenario)
-
-            # Manually add safeshift scores to the final scenario output
-            # for scenario_sample in scenario:
-            #     scenario_sample.update(scenario_scores.individual_scores.model_dump())
-            #     scenario_sample.update(scenario_scores.interaction_scores.model_dump())
-            #     scenario_sample.update(scenario_scores.safeshift_scores.model_dump())
 
         except Exception as e:  # noqa: BLE001
             print(f"Warning: {e} in {file_name}")
@@ -229,7 +283,7 @@ class BaseDataset(Dataset, ABC):
 
         return scenario
 
-    def get_data_list(self) -> dict[str]:
+    def get_data_list(self) -> dict[str, Any]:
         """Gets the list of data if data has already been peprocessed into a file_list cache."""
         filelist_cache = Path(self.cache_path, self.file_list)
         if filelist_cache.exists():
@@ -242,11 +296,12 @@ class BaseDataset(Dataset, ABC):
         np.random.shuffle(data_list)  # noqa: NPY002
         return dict(data_list[: self.num_data_to_consider])
 
-    def process_agent_centric_scenario(self, scenario: Scenario) -> dict:
+    def process_agent_centric_scenario(self, scenario: Scenario, scenario_scores: ScenarioScores | None = None) -> list[dict[str, Any]] | None:
         """Processes a scenario from an internal format into an agent-centric format.
 
         Args:
-            scenario (list): list of N dictionaries containing the agent-centric information for each of the N centers.
+            scenario (Scenario): The input scenario in internal format to be transformed into agent-centric format.
+            scenario_scores (ScenarioScores | None): optional scenario scores to be added to the agent-centric format.
 
         """
         agent_data = scenario.agent_data
@@ -266,6 +321,7 @@ class BaseDataset(Dataset, ABC):
             center_objects=center_objects,
             track_index_to_predict=track_index_to_predict,
             metadata=metadata,
+            scenario_scores=scenario_scores,
         )
 
         # Add center objects and scenario information
@@ -325,7 +381,7 @@ class BaseDataset(Dataset, ABC):
 
     def get_agents_of_interest_center_points(
         self, agent_data: AgentData, tracks_to_predict: TracksToPredict, metadata: ScenarioMetadata
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray | None, np.ndarray]:
         """Gets the centerpoints of the agents of interest in the scenario
             N: number of agents
             D: agent attributes
@@ -375,7 +431,8 @@ class BaseDataset(Dataset, ABC):
         center_objects: np.ndarray,
         track_index_to_predict: np.ndarray,
         metadata: ScenarioMetadata,
-    ) -> dict[str, np.ndarray]:
+        scenario_scores: ScenarioScores | None = None,
+    ) -> dict[str, Any]:
         """Computes the agent-centric data."""
         # Transform the agent trajectories
         center_points = AgentTrajectoryMasker(center_objects)
@@ -505,6 +562,33 @@ class BaseDataset(Dataset, ABC):
         agent_futures = np.pad(agent_futures, ((0, 0), (0, size_to_pad), (0, 0), (0, 0)))
         agent_futures_mask = np.pad(agent_futures_mask, ((0, 0), (0, size_to_pad), (0, 0)))
 
+        # Extract score information if available
+        individual_agent_scores, individual_scene_scores = None, None
+        interaction_agent_scores, interaction_scene_scores = None, None
+        if scenario_scores is not None:
+            # Get valid agent scores
+            individual_agent_scores = scenario_scores.individual_scores.agent_scores[valid_past_mask] # pyright: ignore[reportOptionalSubscript]
+            individual_agent_scores_valid = scenario_scores.individual_scores.agent_scores_valid[valid_past_mask] # pyright: ignore[reportOptionalSubscript]
+            individual_agent_scores[~individual_agent_scores_valid] = 0
+            individual_agent_scores = np.tile(individual_agent_scores[None, :], (num_center_points, 1))
+
+            interaction_agent_scores = scenario_scores.interaction_scores.agent_scores[valid_past_mask] # pyright: ignore[reportOptionalSubscript]
+            interaction_agent_scores_valid = scenario_scores.interaction_scores.agent_scores_valid[valid_past_mask] # pyright: ignore[reportOptionalSubscript]
+            interaction_agent_scores[~interaction_agent_scores_valid] = 0
+            interaction_agent_scores = np.tile(interaction_agent_scores[None, :], (num_center_points, 1))
+
+            # Take only the top-k agents
+            individual_agent_scores = np.take_along_axis(individual_agent_scores[..., None, None], topk_idxs, axis=1)
+            interaction_agent_scores = np.take_along_axis(interaction_agent_scores[..., None, None], topk_idxs, axis=1)
+
+            # Pad the scores if scene has less agents than the maximum
+            individual_agent_scores = np.pad(individual_agent_scores, ((0, 0), (0, size_to_pad), (0, 0), (0, 0)))
+            interaction_agent_scores = np.pad(interaction_agent_scores, ((0, 0), (0, size_to_pad), (0, 0), (0, 0)))
+
+            # Extract scene scores
+            individual_scene_scores = [scenario_scores.individual_scores.scene_score] * num_center_objects
+            interaction_scene_scores = [scenario_scores.interaction_scores.scene_score] * num_center_objects
+
         return {
             "pad": size_to_pad * np.ones(shape=(num_center_objects)),
             "obj_ids": agent_ids,
@@ -514,6 +598,10 @@ class BaseDataset(Dataset, ABC):
             "obj_trajs_last_pos": agent_histories_last_pos,
             "obj_trajs_future_state": agent_futures,
             "obj_trajs_future_mask": agent_futures_mask,
+            "individual_agent_scores": individual_agent_scores,
+            "individual_scene_scores": individual_scene_scores,
+            "interaction_agent_scores": interaction_agent_scores,
+            "interaction_scene_scores": interaction_scene_scores,
             "center_gt_trajs": center_gt_trajs,
             "center_gt_trajs_mask": center_gt_trajs_mask,
             "center_gt_final_valid_idx": center_gt_final_valid_idx,

@@ -62,6 +62,33 @@ class CausalOutput(BaseModel):  # pyright: ignore[reportUntypedBaseClass]
     causal_logits: Tensor[TorchTensor, Any, Float] | None = None
 
 
+class SafetyOutput(BaseModel):  # pyright: ignore[reportUntypedBaseClass]
+    """Encapsulates causal output values.
+
+    Attributes:
+        individual_safety_gt (TorchTensor(Float)): contains categories in {0, N}, where 0 means invalid, and 1 to N are
+            the different safety levels.
+        individual_safety_pred (TorchTensor(Float)): contains the predicted tensor of safety levels.
+        individual_safety_pred_probs (TorchTensor(Float)): contains the predicted tensor as a probability vector.
+        individual_safety_logits (TorchTensor(Float)): contains the causal logit values before applying a Softmax.
+        interaction_safety_gt (TorchTensor(Float)): contains categories in {0, N}, where 0 means invalid, and 1 to N are
+            the different safety levels.
+        interaction_safety_pred (TorchTensor(Float)): contains the predicted tensor of safety levels.
+        interaction_safety_pred_probs (TorchTensor(Float)): contains the predicted tensor as a probability vector.
+        interaction_safety_logits (TorchTensor(Float)): contains the causal logit values before applying a Softmax.
+    """
+
+    individual_safety_gt: Tensor[TorchTensor, Any, Float]
+    individual_safety_pred: Tensor[TorchTensor, Any, Float]
+    individual_safety_pred_probs: Tensor[TorchTensor, Any, Float]
+    individual_safety_logits: Tensor[TorchTensor, Any, Float] | None = None
+
+    interaction_safety_gt: Tensor[TorchTensor, Any, Float]
+    interaction_safety_pred: Tensor[TorchTensor, Any, Float]
+    interaction_safety_pred_probs: Tensor[TorchTensor, Any, Float]
+    interaction_safety_logits: Tensor[TorchTensor, Any, Float] | None = None
+
+
 class ScenarioEmbedding(BaseModel):  # pyright: ignore[reportUntypedBaseClass]
     """Encapsulates the output values of the ScenarioEmbedded defined in 'models/scene/embedder.py'.
 
@@ -74,17 +101,45 @@ class ScenarioEmbedding(BaseModel):  # pyright: ignore[reportUntypedBaseClass]
     scenario_dec: Tensor[TorchTensor, Any, Float]
 
 
+class ScenarioScores(BaseModel):  # pyright: ignore[reportUntypedBaseClass]
+    """Encapsulates the output values of the ScenarioScores
+
+    Attributes:
+        individual_agent_scores (TorchTensor(Float)): the scores of each agent in the scenario.
+        individual_scenario_score (TorchTensor(Float)): the overall score of the scenario based on individual agents.
+        interaction_agent_scores (TorchTensor(Float)): the scores of each agent in the scenario based on interactions.
+        interaction_scenario_score (TorchTensor(Float)): the overall score of the scenario based on interactions.
+    """
+
+    individual_agent_scores: Tensor[TorchTensor, Any, Float]
+    individual_scenario_score: Tensor[TorchTensor, Any, Float]
+    interaction_agent_scores: Tensor[TorchTensor, Any, Float]
+    interaction_scenario_score: Tensor[TorchTensor, Any, Float]
+
+
 class ModelOutput(BaseModel):  # pyright: ignore[reportUntypedBaseClass]
     """Encapsulates all model outputs decoded values of a scenario defined in 'models'.
 
     Attributes:
-        motion_decoder_output (MotionDecoderOutput): an encoded embedding of a scenario if pre-processing is performed.
-        tokenization_output (TokenizationOutput): a decoded embedding of a scenario
+        scenario_embedding (ScenarioEmbedding): the scenario embedding output values.
+        trajectory_decoder_output (TrajectoryDecoderOutput | None): the trajectory decoder output values.
+        tokenization_output (TokenizationOutput | None): the tokenization output values.
+        safety_output (SafetyOutput | None): the safety output values.
+        causal_output (CausalOutput | None): the causal output values.
+        causal_tokenization_output (TokenizationOutput | None): the causal tokenization output values.
+        history_ground_truth (TorchTensor(Float)): the ground truth history trajectories.
+        future_ground_truth (TorchTensor(Float)): the ground truth future trajectories.
+        dataset_name (list[str]): the name of the dataset for each scenario in the batch.
+        scenario_id (list[str]): the unique identifier of each scenario in the batch.
+        agent_ids (TorchTensor(Int)): the unique identifiers of each agent in the batch.
+        agent_scores (TorchTensor(Float) | None): the scores of each agent in the batch if available.
+        scene_score (TorchTensor(Float) | None): the score of each scene in the batch if available.
     """
 
     scenario_embedding: ScenarioEmbedding
     trajectory_decoder_output: TrajectoryDecoderOutput | None = None
     tokenization_output: TokenizationOutput | None = None
+    safety_output: SafetyOutput | None = None
     causal_output: CausalOutput | None = None
     causal_tokenization_output: TokenizationOutput | None = None
 
@@ -94,5 +149,4 @@ class ModelOutput(BaseModel):  # pyright: ignore[reportUntypedBaseClass]
     dataset_name: list[str]
     scenario_id: list[str]
     agent_ids: Tensor[TorchTensor, Any, Int]
-    agent_scores: Tensor[TorchTensor, Any, Float] | None = None
-    scene_score: Tensor[TorchTensor, Any, Float] | None = None
+    scenario_scores: ScenarioScores | None = None
