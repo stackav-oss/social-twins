@@ -2,6 +2,47 @@
 set -euo pipefail
 
 ############################
+# Usage
+############################
+usage() {
+    cat <<EOF
+Usage: $0 [options]
+
+Options:
+  -m <models>       Model(s), comma-separated
+                    (default: wayformer, scenetransformer, scenetokens_student, scenetokens_teacher_unmasked, safe_scenetokens)
+  -d <devices>      Devices (e.g. 0 or 0,1)
+                    (default: 0)
+  -s <strategies>   Strategy/strategies, comma-separated
+                    (default: random_drop, token_random_drop, simple_token_jaccard_drop, gumbel_token_jaccard_drop, simple_token_hamming_drop, gumbel_token_hamming_drop)
+  -p <percentages>  Percentage(s), comma-separated
+                    (default: 0.45, 0.55, 0.65, 0.75, 0.85, 0.95)
+  -n                Dry run (print commands, do not execute)
+  -h                Show this help message
+
+Examples:
+  # Run with all defaults
+  $0
+
+  # Test specific model and strategy
+  $0 -m scenetokens_student -s random_drop
+
+  # Multiple models and devices
+  $0 -m wayformer,scenetransformer -d 0,1
+
+  # Custom strategies
+  $0 -s token_random_drop,gumbel_token_hamming_drop
+
+  # Custom percentages
+  $0 -p 0.5,0.7,0.9
+
+  # Dry run to preview commands
+  $0 -m scenetokens_student -n
+EOF
+    exit 1
+}
+
+############################
 # Defaults
 ############################
 DEFAULT_MODELS=(
@@ -33,7 +74,7 @@ Usage: $0 [options]
 
 Options:
   -m <models>       Model(s), comma-separated
-                    (default: wayformer , scenetransformer, scenetokens_student, scenetokens_teacher_unmasked)
+                    (default: wayformer, scenetransformer, scenetokens_student, scenetokens_teacher_unmasked, safe_scenetokens)
   -d <devices>      Devices (e.g. 0 or 0,1)
                     (default: 0)
   -s <strategies>   Strategy/strategies, comma-separated

@@ -182,7 +182,9 @@ def weighted_sorting_gumbel(
     return samples[sorted_indices], weights[sorted_indices]
 
 
-def jaccard_selection_per_token(config: DictConfig, model_outputs: dict[str, output.ModelOutput]) -> dict[str, Any]:
+def alignment_based_selection_per_token(
+    config: DictConfig, model_outputs: dict[str, output.ModelOutput]
+) -> dict[str, Any]:
     """A sample selection strategy that randomly keeps a specified percentage of the scenarios for each class that has
     more than a desired minimum percentage.
 
@@ -227,14 +229,18 @@ def jaccard_selection_per_token(config: DictConfig, model_outputs: dict[str, out
             generator = default_rng(config.seed)
             scores = compute_alignment_scores(group_modes[base_token], token_group, config.alignment_strategy)
             # Get the scenario IDs (pseudo-randomly) sorted by their score, prioritizing samples with lower alignment to
-            # the target value (sort_ascending=False), i.e., samples that are potentially rare w.r.t their group.
+            # the target value, i.e., samples that are potentially rare w.r.t their group.
             if config.sorting_strategy == "gumbel":
                 # Highly aligned instances will be given a score of (1-score) to deprioritize them for selection, but we
-                # don't want to be too harsh so as to completely zero-out-them (large_exponent=8)
+                # don't want to be too harsh so as to completely zero-out-them (large_exponent=8).
+                # Since we want to drop the samples at the beginning of the sorted list and we're using the inverse of
+                # the score, we sort in ascending order.
                 sorted_scenario_ids, _ = weighted_sorting_gumbel(
                     scenario_ids, 1.0 - scores, generator, sort_ascending=True, large_exponent=8.0
                 )
             else:
+                # Since we want to drop the samples at the beginning of the sorted list and we're using the scores
+                # directly, we sort in descending order.
                 sorted_scenario_ids, _ = weighted_sorting(scenario_ids, scores, sort_ascending=False)
 
             drop = sorted_scenario_ids[:num_to_drop].tolist()
@@ -283,19 +289,19 @@ def run_sample_selection(config: DictConfig, model_outputs: dict[str, output.Mod
         case SampleSelection.SIMPLE_TOKEN_JACCARD_DROP:
             config.sorting_strategy = "simple"
             config.alignment_strategy = "jaccard"
-            sample_selection = jaccard_selection_per_token(config, model_outputs)
+            sample_selection = alignment_based_selection_per_token(config, model_outputs)
         case SampleSelection.SIMPLE_TOKEN_HAMMING_DROP:
             config.sorting_strategy = "simple"
             config.alignment_strategy = "hamming"
-            sample_selection = jaccard_selection_per_token(config, model_outputs)
+            sample_selection = alignment_based_selection_per_token(config, model_outputs)
         case SampleSelection.GUMBEL_TOKEN_JACCARD_DROP:
             config.sorting_strategy = "gumbel"
             config.alignment_strategy = "jaccard"
-            sample_selection = jaccard_selection_per_token(config, model_outputs)
+            sample_selection = alignment_based_selection_per_token(config, model_outputs)
         case SampleSelection.GUMBEL_TOKEN_HAMMING_DROP:
             config.sorting_strategy = "gumbel"
             config.alignment_strategy = "hamming"
-            sample_selection = jaccard_selection_per_token(config, model_outputs)
+            sample_selection = alignment_based_selection_per_token(config, model_outputs)
         case _:
             error_message = f"Unsupported selection strategy: {selection_strategy}"
             raise ValueError(error_message)
