@@ -155,7 +155,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--scenario_score_mapping_filepath",
         type=Path,
-        default="../../meta/scene_to_scores_mapping.csv",
+        default="../../meta/scenario_to_scores_mapping.csv",
         help="Path to the file with scenario score mappings.",
     )
     parser.add_argument(
