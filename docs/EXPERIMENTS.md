@@ -66,3 +66,8 @@ Current model versions are:
 - *ScenetokensStudent*: which builds from Wayformer and adds a scenario tokenization layer. To use it, run `train.py` with `model=scenetokens_student`.
 - *ScenetokensTeacher*: which builds from Wayformer and adds a scenario tokenization layer with causal awareness. To use it, run `train.py` with `model=scenetokens_teacher`.
 - *ScenetokensTeacherUnmasked*: which builds from Wayformer and adds a scenario tokenization layer with causal awareness. Ablation of *ScenetokensTeacher*. To use it, run `train.py` with `model=scenetokens_teacher_unmasked`.
+- *SafeSceneTokens*: which builds from Wayformer and adds a scenario tokenization layer with safety-relevance awareness. To use it, run `train.py` with `model=safe_scenetokens`. **NOTES**:
+    - This model requires additional labels which can be produced using categorization meta files generated using the [ScenarioCharacterization](https://github.com/navarrs/ScenarioCharacterization) tool.
+    - Instructions on how to generate the labeling files using this package will be added in the future.
+    - We release pre-generated meta files [here](https://drive.google.com/drive/folders/1GlA768lIIFl3Zitxh00D9zH1Xmvj9mbQ?usp=drive_link)
+    - To produce the labels for training using these files, set `autolabel_agents=true` in `configs/train.yaml`. If you have already post-processed the training data make sure to also set `overwrite_cache=true`.

@@ -6,7 +6,7 @@ To run a training experiment:
 ```bash
 uv run -m scenetokens.train model=[model_name]
 ```
-where `model_name`: either of `wayformer`, `scenetransformer`, `scenetokens_student`, `scenetokens_teacher` or `scenetokens_teacher_unmasked`. The model name needs to be specified.
+where `model_name`: either of `wayformer`, `scenetransformer`, `scenetokens_student`, `scenetokens_teacher`, `scenetokens_teacher_unmasked` or `safe_scenetokens`. The model name needs to be specified.
 
 Additional command line arguments:
 * `logger`: either of `mlflow`, `neptune`, `tensorboard`, `wandb`, `csv` or `many_loggers` (which will use both `mlflow` and `csv`). Specific parameters might need to be set for some loggers. **Default** value is `many_loggers`.
