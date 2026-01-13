@@ -66,28 +66,6 @@ DEFAULT_PERCENTAGES=(0.45 0.55 0.65 0.75 0.85 0.95)
 dry_run=false
 
 ############################
-# Usage
-############################
-usage() {
-    cat <<EOF
-Usage: $0 [options]
-
-Options:
-  -m <models>       Model(s), comma-separated
-                    (default: wayformer, scenetransformer, scenetokens_student, scenetokens_teacher_unmasked, safe_scenetokens)
-  -d <devices>      Devices (e.g. 0 or 0,1)
-                    (default: 0)
-  -s <strategies>   Strategy/strategies, comma-separated
-                    (default: random_drop, token_random_drop, simple_token_jaccard_drop, gumbel_token_jaccard_drop, simple_token_hamming_drop, gumbel_token_hamming_drop)
-  -p <percentages>  Percentage(s), comma-separated
-                    (default: 0.45, 0.55, 0.65, 0.75, 0.85, 0.95)
-  -n                Dry run (print commands, do not execute)
-  -h                Show this help message
-EOF
-    exit 1
-}
-
-############################
 # Parse arguments
 ############################
 models=()
