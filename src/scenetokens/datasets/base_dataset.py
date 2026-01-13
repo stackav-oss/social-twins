@@ -257,8 +257,7 @@ class BaseDataset(Dataset, ABC):
     def process_scenario(self, data_path: str, mapping: dict, file_name: str) -> list[dict[str, Any]] | None:
         """Reads and processes a custom scenario."""
         scenario = self.read_scenario(data_path, mapping, file_name)
-        # TODO: resolve bare except from Unitraj.
-        # breakpoint()
+        # TODO: resolve bare except from Unitraj.W
         try:
             # Repack custom format into an intermediate general, format defined by 'Scenario'
             scenario = self.repack_scenario(scenario)
