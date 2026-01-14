@@ -332,16 +332,16 @@ if __name__ == "__main__":
     parser.add_argument(
         "--causal_data_path",
         type=Path,
-        default="/data/driving/waymo/processed/mini_causal/",
+        default="/datasets/waymo/processed/mini_causal/",
         help="Paths to the raw input data.",
     )
     parser.add_argument(
-        "--output_data_path", type=Path, default="/data/driving/waymo/processed/", help="Paths to the output data."
+        "--output_data_path", type=Path, default="/datasets/waymo/processed/", help="Paths to the output data."
     )
     parser.add_argument(
         "--causal_labels_path",
         type=Path,
-        default="/data/driving/waymo/causal_agents/processed_labels/",
+        default="/datasets/waymo/causal_agents/processed_labels/",
         help="Path to the causal labels.",
     )
     parser.add_argument(

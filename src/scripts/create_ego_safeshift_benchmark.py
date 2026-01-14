@@ -138,13 +138,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--causal_data_path",
         type=Path,
-        default="/data/driving/waymo/processed/mini_causal/",
+        default="/datasets/driving/waymo/processed/mini_causal/",
         help="Paths to the raw input data.",
     )
     parser.add_argument(
         "--output_data_path",
         type=Path,
-        default="/data/driving/waymo/processed/causal_ego_safeshift",
+        default="/datasets/driving/waymo/processed/causal_ego_safeshift",
         help="Paths to the output data.",
     )
     parser.add_argument(
