@@ -1,5 +1,4 @@
 """ Script adapted from: https://arxiv.org/abs/2209.13508 """
-import glob
 import multiprocessing
 import os
 import pickle # nosec B403  # nosec B403
