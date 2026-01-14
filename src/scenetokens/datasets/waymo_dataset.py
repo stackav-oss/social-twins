@@ -1,4 +1,3 @@
-import os
 import pickle
 from pathlib import Path
 
@@ -25,21 +24,15 @@ class WaymoDataset(BaseDataset):
     def get_dataset_summary(self, data_path: str) -> tuple[list[str], dict[str, str]]:
         summary_list = []
         mapping = {}
-        for sub_dir in Path(data_path).iterdir():
-            sub_dir_list = os.listdir(Path(data_path, sub_dir))  # noqa: PTH208
-            # Remove blacklisted scenarios
-            summary_list += sub_dir_list
-            for file in sub_dir_list:
-                mapping[file] = sub_dir
+        for filepath in Path(data_path).rglob("*.pkl"):
+            summary_list.append(filepath.name)
+            mapping[filepath.name] = str(filepath)
         print(f"Got {len(summary_list)} scenarios.")
         return summary_list, mapping
 
-    def read_scenario(self, data_path: str, mapping: dict, file_name: str) -> dict:
-        sub_dir = mapping[file_name]
-        scenario_filepath = Path(data_path, sub_dir, file_name)
-        with scenario_filepath.open("rb") as f:
-            scenario = pickle.load(f)
-        return scenario  # noqa: RET504
+    def read_scenario(self, path: Path) -> dict:
+        with path.open("rb") as f:
+            return pickle.load(f)
 
     def repack_scenario(self, scenario: dict) -> Scenario:
         """Repacks an input scenario in dictionary format into a GlobalScenario."""
