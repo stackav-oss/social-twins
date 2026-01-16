@@ -16,6 +16,7 @@ import torch
 from omegaconf import DictConfig
 from torch.utils.data import Dataset
 
+from scenetokens.utils import pylogger
 from scenetokens.utils import data_utils
 from scenetokens.utils.constants import BIG_EPSILON, DataSplits, SampleSelection
 from characterization.features.safeshift_features import SafeShiftFeatures
@@ -23,6 +24,10 @@ from characterization.scorer.safeshift_scorer import SafeShiftScorer
 from characterization.schemas import Scenario, AgentData, TracksToPredict, StaticMapData, ScenarioMetadata, ScenarioScores
 from characterization.utils.common import AgentType, AgentTrajectoryMasker
 from characterization.utils.geometric_utils import find_closest_lanes, find_conflict_points
+
+
+_LOGGER = pylogger.get_pylogger(__name__)
+
 
 class BaseDataset(Dataset, ABC):
     """Base dataset loader class for trajectory datasets."""
@@ -125,9 +130,9 @@ class BaseDataset(Dataset, ABC):
 
                 # save the data_splits in a tmp directory
                 Path(self.config.temp_path).mkdir(parents=True, exist_ok=True)
-                for i in range(process_num):
+                for i, data_split in enumerate(data_splits):
                     with Path(self.config.temp_path, f"{i}.pkl").open("wb") as f:
-                        pickle.dump(data_splits[i], f)
+                        pickle.dump(data_split, f)
 
                 with Pool(processes=process_num) as pool:
                     results = pool.map(self.process_data_chunk, list(range(process_num)))
@@ -178,18 +183,17 @@ class BaseDataset(Dataset, ABC):
     def process_data_chunk(self, worker_index: int) -> dict[str, dict[str, Any]]:
         """Processes scenario data for a given chunk index."""
         with Path(self.config.temp_path, f"{worker_index}.pkl").open("rb") as f:
-            data_chunk = pickle.load(f)
+            data_path, mapping, data_list, dataset_name = pickle.load(f)
 
         file_list = {}
-        data_path, mapping, data_list, dataset_name = data_chunk
         hdf5_path = Path(self.cache_path, f"{worker_index}.h5")
 
         with h5py.File(hdf5_path, "w") as f:
-            for cnt, file_name in enumerate(data_list):
+            for cnt, filename in enumerate(data_list):
                 if worker_index == 0 and cnt % max(int(len(data_list) / 10), 1) == 0:
                     print(f"{cnt}/{len(data_list)} data processed", flush=True)
 
-                output = self.process_scenario(data_path, mapping, file_name)
+                output = self.process_scenario(Path(mapping[filename]))
                 if output is None:
                     continue
 
@@ -197,6 +201,8 @@ class BaseDataset(Dataset, ABC):
                     grp_name = dataset_name + "-" + str(worker_index) + "-" + str(cnt) + "-" + str(i)
                     grp = f.create_group(grp_name)
                     for key, value in record.items():
+                        if value is None:
+                            continue
                         if isinstance(value, str):
                             value = np.bytes_(value)  # noqa: PLW2901
                         grp.create_dataset(key, data=value)
@@ -254,13 +260,13 @@ class BaseDataset(Dataset, ABC):
 
         return scenario
 
-    def process_scenario(self, data_path: str, mapping: dict, file_name: str) -> list[dict[str, Any]] | None:
+    def process_scenario(self, path: Path) -> list[dict[str, Any]] | None:
         """Reads and processes a custom scenario."""
-        scenario = self.read_scenario(data_path, mapping, file_name)
+        raw_scenario = self.read_scenario(path)
         # TODO: resolve bare except from Unitraj.W
         try:
             # Repack custom format into an intermediate general, format defined by 'Scenario'
-            scenario = self.repack_scenario(scenario)
+            scenario = self.repack_scenario(raw_scenario)
             scenario_scores = None
             if self.autolabel_agents:
                 scenario = self.compute_scenario_map_metadata(scenario)
@@ -269,18 +275,18 @@ class BaseDataset(Dataset, ABC):
 
             # Process intermediate format into final format.
             # NOTE: currently, this is Unitraj's scenario representation. It returns a dictionary not a schema as above.
-            scenario = self.process_agent_centric_scenario(scenario, scenario_scores=scenario_scores)
-
-            # Compute Unitraj's characterizations: Kalman Difficulty and Trajectory Type features.
-            # NOTE: Currently, they're derived from the agent-centric scenario representation. Later on they'll get
-            # moved to ScenarioCharacterization.
-            scenario = self.characterize_scenario(scenario)
+            ac_scenario = self.process_agent_centric_scenario(scenario, scenario_scores=scenario_scores)
+            if ac_scenario is not None:
+                # Compute Unitraj's characterizations: Kalman Difficulty and Trajectory Type features.
+                # NOTE: Currently, they're derived from the agent-centric scenario representation. Later on they'll get
+                # moved to ScenarioCharacterization.
+                ac_scenario = self.characterize_scenario(ac_scenario)
 
         except Exception as e:  # noqa: BLE001
-            print(f"Warning: {e} in {file_name}")
-            scenario = None
+            _LOGGER.error("error loading scenario: %s", path)
+            ac_scenario = None
 
-        return scenario
+        return ac_scenario
 
     def get_data_list(self) -> dict[str, Any]:
         """Gets the list of data if data has already been peprocessed into a file_list cache."""
@@ -352,7 +358,8 @@ class BaseDataset(Dataset, ABC):
         for i in range(sample_num):
             ret_dict_i = {}
             for k, v in ret_dict.items():
-                ret_dict_i[k] = v[i]
+                # values such as individual_agent_scores can be None rather than an array
+                ret_dict_i[k] = None if v is None else v[i]
             scenario_list.append(ret_dict_i)
         return scenario_list
 
@@ -925,7 +932,7 @@ class BaseDataset(Dataset, ABC):
         pass
 
     @abstractmethod
-    def read_scenario(self, data_path: str, mapping: dict, file_name: str) -> dict:
+    def read_scenario(self, path: Path) -> dict:
         pass
 
     @cache  # noqa: B019
