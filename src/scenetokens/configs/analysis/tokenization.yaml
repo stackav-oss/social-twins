@@ -11,14 +11,14 @@ rank_by_probability: true # if true and 'best_mode_only: false', it will rank th
 
 # Token consistency analysis
 run_token_consistency_analysis: false
-consistency_measure: jaccard # either of 'jaccard' or 'hamming'
+consistency_measure: hamming # either of 'jaccard' or 'hamming'
 
 # Group uniqueness analysis
 run_group_uniqueness_analysis: false
 normalize_counts: 'group_scenarios' # either of 'all_scenarios' or 'group_scenarios' or 'none'
 
 # Inter-group uniqueness
-run_intergroup_analysis: true
+run_intergroup_analysis: false
 
 # Produces a visualization of the scenario embeddings using dimensionality reduction methods.
 run_dim_reduction_analysis: false
