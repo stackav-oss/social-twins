@@ -21,6 +21,7 @@ class SafeSceneTokens(Criterion):
         config.safety_type = "individual"
         config.classification_weight = config.get("individual_classification_weight", 1.0)
         self.individual_safety_loss = SafetyClassification(config)
+
         config.safety_type = "interaction"
         config.classification_weight = config.get("interaction_classification_weight", 1.0)
         self.interaction_safety_loss = SafetyClassification(config)
