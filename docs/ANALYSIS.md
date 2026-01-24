@@ -79,3 +79,5 @@ uv run src/scripts/visualize_agent_score_distribution.py \
     --data_subsets name-of-training-set,name-of-validation-set,name-of-testing-set
     --output_path /path/to/save/the/plots
 ```
+
+Output example shown [here](https://github.com/stackav-oss/social-twins/pull/16).
