@@ -1,0 +1,33 @@
+defaults:
+  - default.yaml
+  - wayformer.yaml # Model's backbone architecture directly builds from Wayformer
+
+_target_: scenetokens.models.scenetokens_encoder.SceneTokensEncoder
+config:
+  model_name: scenetokens-encoder
+  extra_tags: ${model.config.base_tags}_${model.config.tokenizer_tags}_${model.config.criterion_tags}
+
+  num_classes: 100
+
+  # Scenario Classifier Configuration
+  tokenizer_name: quantized
+  tokenizer_tags: num-tokens-${model.config.tokenizer.num_tokens}_normalize-${model.config.tokenizer.normalize}
+  tokenizer:
+    _target_: scenetokens.models.scene.tokenizers.quantized_tokenizer.QuantizedTokenizer
+    num_queries: ${model.config.num_modes}
+    hidden_size: 256
+    num_tokens: ${model.config.num_classes}
+    reduction_factor: 2
+    normalize: true
+
+  # No motion decoder needed for encoder-only model
+  motion_decoder: null
+
+  # Model's optimization criterion - reconstruction only
+  criterion_tags: reconstruction-${model.config.criterion.config.reconstruction_weight}_tokenization-${model.config.criterion.config.tokenization_weight}
+  criterion:
+    _target_: scenetokens.models.criterion.encoder_only.EncoderOnly
+    config:
+      reduction: 'mean'
+      reconstruction_weight: 1.0
+      tokenization_weight: 1.0

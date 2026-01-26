@@ -1,0 +1,6 @@
+# Waymo config for encoder-only model with full trajectory
+# Uses the entire 9.1s scenario (1.1s history + 8s future) for tokenization
+dataset_name: waymo
+past_len: 91 # full trajectory length (11 + 80 = 91 timesteps = 9.1s)
+future_len: 0 # no future prediction needed
+tag: "waymo_full-trajectory_past-${scenario.past_len}"
