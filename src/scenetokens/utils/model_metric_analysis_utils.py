@@ -15,8 +15,6 @@ from omegaconf import DictConfig
 from scenetokens.utils.constants import SMALL_EPSILON
 
 
-plt.style.use("seaborn-v0_8-whitegrid")
-
 MODEL_NAME_MAP = {
     "wayformer": "Wayformer",
     "scenetransformer": "SceneTransformer",
@@ -230,6 +228,8 @@ def plot_sample_selection_sweep_lineplot(config: DictConfig, log: Logger, output
         log (Logger): Logger for logging analysis information.
         output_path (Path): Directory to save the generated plots.
     """
+    plt.style.use("seaborn-v0_8-whitegrid")
+
     output_path = output_path / "sample_selection_lineplots"
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -740,6 +740,8 @@ def run_benchmark_analysis(config: DictConfig, log: Logger, output_path: Path) -
         log (Logger): Logger for logging analysis information.
         output_path (Path): Directory to save the generated plots.
     """
+    plt.style.use("seaborn-v0_8-whitegrid")
+
     output_path = output_path / config.benchmark
     output_path.mkdir(parents=True, exist_ok=True)
 
