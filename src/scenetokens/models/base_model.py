@@ -19,7 +19,7 @@ from scenetokens.schemas.output_schemas import (
     TrajectoryDecoderOutput,
 )
 from scenetokens.utils import metric_utils, save_cache
-from scenetokens.utils.constants import KALMAN_DIFFICULTY, MILLION, TrajectoryType
+from scenetokens.utils.constants import KALMAN_DIFFICULTY, MILLION, ModelStatus, TrajectoryType
 
 
 class BaseModel(LightningModule, ABC):
@@ -110,13 +110,14 @@ class BaseModel(LightningModule, ABC):
         print("\tNon-Trainable parameters: %.2fM" % (nontrainable_parameters / MILLION))
         return total_parameters
 
-    def model_step(self, batch: dict, batch_idx: int, status: str) -> torch.Tensor:
+    def model_step(self, batch: dict, batch_idx: int, status: ModelStatus) -> torch.Tensor:
         """Takes a model step, calculates the loss value and logs model outputs.
 
         Args:
             batch (dict): dictionary containing the batch information from the collate function.
             batch_idx (int): index of current batch.
-            status (str): modeling status ('train', 'val', 'test')
+            status (ModelStatus): status of the model, either of ModelStatus.TRAIN, ModelStatus.VALIDATION, or
+                ModelStatus.TEST.
 
         Returns:
             loss (torch.Tensor): a tensor containing the model's loss.
@@ -127,8 +128,8 @@ class BaseModel(LightningModule, ABC):
         if self.sample_selection:
             cache_filepath = Path(self.batch_cache_path, f"train_batch_{batch_idx}.pkl")
             save_cache(model_output, cache_filepath)
-        elif status != "train" and self.cache_batch and batch_idx % self.cache_every_batch_idx:
-            cache_filepath = Path(self.batch_cache_path, f"{status}_batch_{batch_idx}.pkl")
+        elif status != ModelStatus.TRAIN and self.cache_batch and batch_idx % self.cache_every_batch_idx == 0:
+            cache_filepath = Path(self.batch_cache_path, f"{status.value}_batch_{batch_idx}.pkl")
             save_cache(model_output, cache_filepath)
         return loss
 
@@ -143,7 +144,7 @@ class BaseModel(LightningModule, ABC):
         ------
             loss (torch.Tensor): model's loss value.
         """
-        return self.model_step(batch, batch_idx, status="train")
+        return self.model_step(batch, batch_idx, status=ModelStatus.TRAIN)
 
     def validation_step(self, batch: dict, batch_idx: int) -> torch.Tensor:
         """Performs a model step on a validation batch.
@@ -156,7 +157,7 @@ class BaseModel(LightningModule, ABC):
         ------
             loss (torch.Tensor): model's loss value.
         """
-        return self.model_step(batch, batch_idx, status="val")
+        return self.model_step(batch, batch_idx, status=ModelStatus.VALIDATION)
 
     def test_step(self, batch: dict, batch_idx: int) -> torch.Tensor:
         """Performs a model step on a testing batch.
@@ -169,7 +170,7 @@ class BaseModel(LightningModule, ABC):
         ------
             loss (torch.Tensor): model's loss value.
         """
-        return self.model_step(batch, batch_idx, status="test")
+        return self.model_step(batch, batch_idx, status=ModelStatus.TEST)
 
     @staticmethod
     def gather_input(inputs: dict) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -327,7 +328,7 @@ class BaseModel(LightningModule, ABC):
 
     @staticmethod
     def _compute_trajectory_metrics(
-        inputs: dict[str, Any], trajectory_output: TrajectoryDecoderOutput, status: str
+        inputs: dict[str, Any], trajectory_output: TrajectoryDecoderOutput, status: ModelStatus
     ) -> dict[str, npt.NDArray[np.float64]]:
         """Computes trajectory metrics on model outputs.
 
@@ -342,7 +343,8 @@ class BaseModel(LightningModule, ABC):
         Args:
             inputs (dict): dictionary containing input scenario information
             trajectory_output: trajectory decoder output from the model's forward pass.
-            status (str): status of the model (e.g., "train", "eval").
+            status (ModelStatus): status of the model, either of ModelStatus.TRAIN, ModelStatus.VALIDATION, or
+                ModelStatus.TEST.
 
         Returns:
             dict[str, npt.NDArray[np.float64]]: dictionary containing computed trajectory metrics
@@ -376,7 +378,7 @@ class BaseModel(LightningModule, ABC):
         min_ade, _ = ade.min(dim=-1)  # shape (B)
         min_fde, best_fde_idx = fde.min(dim=-1)  # both are shape (B)
 
-        # miss rate measues whether the final displacement is greater than a specified threshold
+        # miss rate measures whether the final displacement is greater than a specified threshold
         miss_rate_all_modes = metric_utils.compute_miss_rate(fde)
         miss_rate_best_mode = metric_utils.compute_miss_rate(min_fde.unsqueeze(-1))
 
@@ -392,7 +394,7 @@ class BaseModel(LightningModule, ABC):
         }
 
         # NOTE: these metrics slow down training, so will only be calculated during evaluation.
-        if status in ["val", "test"]:
+        if status in [ModelStatus.VALIDATION, ModelStatus.TEST]:
             collision_rate = metric_utils.compute_collision_rate(
                 predicted_traj[:, :, :, :2],
                 predicted_prob,
@@ -478,14 +480,15 @@ class BaseModel(LightningModule, ABC):
 
     @staticmethod
     def compute_metrics(
-        inputs: dict[str, Any], outputs: ModelOutput, status: str
+        inputs: dict[str, Any], outputs: ModelOutput, status: ModelStatus
     ) -> dict[str, npt.NDArray[np.float64]]:
         """Computes task metrics on model outputs.
 
         Args:
             inputs (dict): dictionary containing input scenario information
             outputs (ModelOutput): pydantic validator with model output information.
-            status (str): status of the model (e.g., "train", "eval").
+            status (ModelStatus): status of the model, either of ModelStatus.TRAIN, ModelStatus.VALIDATION, or
+                ModelStatus.TEST.
 
         Returns:
             dict[str, npt.NDArray[np.float64]]: dictionary containing computed metrics.
@@ -530,14 +533,17 @@ class BaseModel(LightningModule, ABC):
         #     loss_dict["mutualInformation"] = mutual_information.cpu().detach().numpy()
         return metric_dict
 
-    def log_info(self, inputs: dict, outputs: ModelOutput, loss: torch.Tensor, status: str = "train") -> None:
+    def log_info(
+        self, inputs: dict, outputs: ModelOutput, loss: torch.Tensor, status: ModelStatus = ModelStatus.TRAIN
+    ) -> None:
         """Logs metric values after training and validation steps.
 
         Args:
             inputs (dict): dictionary containing input scenario information
             outputs (ModelOutput): pydantic validator with model output information.
             loss: (torch.Tensor): model's loss value.
-            status (str): whether the info is logged from training step or validation step.
+            status (ModelStatus): status of the model, either of ModelStatus.TRAIN, ModelStatus.VALIDATION, or
+                ModelStatus.TEST.
         """
         # Split based on dataset
         metric_dict = BaseModel.compute_metrics(inputs, outputs, status)
@@ -548,7 +554,7 @@ class BaseModel(LightningModule, ABC):
         new_dict = BaseModel.split_by_dataset_name(dataset_names, metric_dict, metric_list)
         metric_dict.update(new_dict)
 
-        if status == "val" and self.config.get("eval", False):
+        if status == ModelStatus.VALIDATION and self.config.get("eval", False):
             # Separate the loss dictionary by trajectory type
             trajectory_types = inputs["trajectory_type"].cpu().numpy()
             new_dict = BaseModel.split_by_trajectory_type(trajectory_types, metric_dict, metric_list)
@@ -569,10 +575,10 @@ class BaseModel(LightningModule, ABC):
 
         # Log information
         total_loss = loss.cpu().detach().item()
-        self.log(f"losses/{status}", total_loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log(f"losses/{status.value}", total_loss, on_step=False, on_epoch=True, prog_bar=True)
         for k, v in metric_dict.items():
             batch_size = size_dict[k]
-            self.log(status + "/" + k, v, on_step=False, on_epoch=True, sync_dist=True, batch_size=batch_size)
+            self.log(status.value + "/" + k, v, on_step=False, on_epoch=True, sync_dist=True, batch_size=batch_size)
 
         # TODO: add support for visualization of scenarios
         # if self.local_rank == 0 and status == 'val' and batch_idx == 0:

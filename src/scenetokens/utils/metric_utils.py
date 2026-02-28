@@ -342,17 +342,17 @@ def compute_collision_rate(  # noqa: PLR0913
     batch_size, _, _, _ = ego_pred_traj.shape
 
     # Zero out the ego agent's trajectory in the others_gt_trajs tensor to avoid self-collision
-    batch_indeces = torch.arange(batch_size, device=ego_pred_traj.device)
+    batch_indices = torch.arange(batch_size, device=ego_pred_traj.device)
     other_agents = others_gt_trajs.clone()
-    other_agents[batch_indeces, ego_index] = 0.0
+    other_agents[batch_indices, ego_index] = 0.0
     other_agents_masks = others_gt_trajs_mask.clone()
-    other_agents_masks[batch_indeces, ego_index] = False
+    other_agents_masks[batch_indices, ego_index] = False
 
     # Compute pairwise distances between predicted trajectory and other agents' trajectories
     # distances shape: (B, M, N, T)
     if best_mode_only:
         best_mode_indices = torch.argmax(ego_pred_prob, dim=1)  # shape: (B,)
-        ego_pred_traj = ego_pred_traj[batch_indeces, best_mode_indices]  # shape: (B, T, D)
+        ego_pred_traj = ego_pred_traj[batch_indices, best_mode_indices]  # shape: (B, T, D)
         ego_pred_traj = ego_pred_traj.unsqueeze(1)  # shape: (B, 1, T, D)
     ego = ego_pred_traj[:, :, :, :2].unsqueeze(2)  # (B, M, 1, T, D)
     others = other_agents[:, None, :, :, :2]  # (B, 1, N, T, D)

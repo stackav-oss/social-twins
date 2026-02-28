@@ -13,6 +13,12 @@ DEFAULT_COLLISION_THRESHOLDS: tuple[float, ...] = (0.1, 0.25, 0.5, 1.0)
 KALMAN_DIFFICULTY = {"easy": [0, 30], "medium": [30, 60], "hard": [60, 9999999]}
 
 
+class ModelStatus(Enum):
+    TRAIN = "train"
+    VALIDATION = "val"
+    TEST = "test"
+
+
 class SampleSelection(Enum):
     ALL = "all"
     RANDOM_DROP = "random_drop"
