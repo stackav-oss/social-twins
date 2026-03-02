@@ -10,7 +10,7 @@ Usage: $0 [options]
 
 Options:
   -m <models>       Model(s), comma-separated
-                    (default: wayformer, scenetransformer, scenetokens, causal_scenetokens, safe_scenetokens)
+                    (default: wayformer, scenetransformer, autobot, scenetokens, causal_scenetokens, safe_scenetokens)
   -d <devices>      Devices (e.g. 0 or 0,1)
                     (default: 0)
   -b <benchmarks>   Benchmark(s), comma-separated
@@ -48,6 +48,7 @@ DEFAULT_MODELS=(
     causal_scenetokens
     safe_scenetokens
     scenetransformer
+    autobot
 )
 DEFAULT_DEVICES="0"
 DEFAULT_BENCHMARKS=(

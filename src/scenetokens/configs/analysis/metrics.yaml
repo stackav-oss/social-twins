@@ -2,6 +2,7 @@
 seed: 42 # Seed for random generators
 show_run_id: false
 models_to_compare: [
+  'autobot',
   'scenetransformer',
   'wayformer',
   'causal-scenetokens',
