@@ -1,4 +1,4 @@
-"""Base dataset loader class for the Waymo Open Motion Dataset or ScenarioNet pre-processed data."""
+"""Base dataset loader class for the Trajectory Driving Datasets. """
 
 import json
 import os
@@ -30,7 +30,12 @@ _LOGGER = pylogger.get_pylogger(__name__)
 
 
 class BaseDataset(Dataset, ABC):
-    """Base dataset loader class for trajectory datasets."""
+    """Base dataset loader class for trajectory datasets.
+
+    This class handles loading and processing of scenario data, including caching, multiprocessing, and transformation
+    into an agent-centric format. Subclasses should implement the `load_as_open_scenario` method to load scenarios in
+    their specific format.
+    """
 
     def __init__(self, config: DictConfig) -> None:
         """Dataset constructor."""
@@ -165,7 +170,6 @@ class BaseDataset(Dataset, ABC):
 
                 with Pool(processes=process_num) as pool:
                     results = pool.map(self.process_data_chunk, list(range(process_num)))
-
                 # concatenate the results
                 file_list = {}
                 for result in results:
@@ -878,7 +882,7 @@ class BaseDataset(Dataset, ABC):
             causal_labels_filepath = Path(f"{self.config.causal_labels_path}/{scenario_id}.json")
             # Assume all agents are causal if no causal file is given
             agent_ids = out["obj_ids"].squeeze(-1).squeeze(-1)
-            causal_idxs = np.ones_like(agent_ids)
+            causal_idxs = np.zeros_like(agent_ids)
             if causal_labels_filepath.exists():
                 with causal_labels_filepath.open("r") as f:
                     causal_labels = json.load(f)
@@ -890,6 +894,9 @@ class BaseDataset(Dataset, ABC):
                     causal_idxs = np.isin(agent_ids, causal_ids)
                     causal_idxs[out["track_index_to_predict"]] = True
                 # out['causal_ids_votes'] = np.array(causal_labels['labeler_votes'], dtype=int)
+            else:
+                print(f"Warning: causal labels file not found for scenario {scenario_id}")
+                causal_idxs[out["track_index_to_predict"]] = True
 
             # Mask out padded agents and/or agents with invalid histories (i.e., full mask is False)
             invalid_hists = out["obj_trajs_mask"].sum(axis=1) == 0
