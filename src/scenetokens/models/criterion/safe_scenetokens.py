@@ -1,3 +1,5 @@
+"""Code for the SafeSceneTokens loss function."""
+
 import torch
 from omegaconf import DictConfig
 
@@ -11,13 +13,15 @@ from scenetokens.schemas.output_schemas import ModelOutput
 
 
 class SafeSceneTokens(Criterion):
+    """Criterion for SafeSceneTokens."""
+
     def __init__(self, config: DictConfig) -> None:
         super().__init__(config=config)
 
         self.reconstruction_criterion = Reconstruction(config)
         self.trajpred_criterion = TrajectoryPrediction(config)
 
-        # Classification loss is used for safety agent predictions
+        # Classification losses for safety-agent predictions.
         config.safety_type = "individual"
         config.classification_weight = config.get("individual_classification_weight", 1.0)
         self.individual_safety_loss = SafetyClassification(config)
@@ -27,14 +31,19 @@ class SafeSceneTokens(Criterion):
         self.interaction_safety_loss = SafetyClassification(config)
 
     def forward(self, model_output: ModelOutput) -> torch.Tensor:
-        """Computes the Quantized Teacher loss which combines the quantizatio loss from scenario and agent tokenization,
-        the trajectory prediction loss and the mask classifier loss.
+        """Compute the SafeSceneTokens loss.
+
+        Notation:
+            L_rec: reconstruction loss
+            L_traj: trajectory prediction loss
+            L_ind: individual safety classification loss
+            L_int: interaction safety classification loss
 
         Args:
-            model_output (ModelOutput): pydantic validator for model outputs.
+            model_output (ModelOutput): Structured model outputs.
 
         Returns:
-            loss (torch.tensor): loss value.
+            torch.Tensor: Scalar loss value ``L_rec + L_traj + L_ind + L_int``.
         """
         reconstruction_loss = self.reconstruction_criterion(model_output)
         trajpred_loss = self.trajpred_criterion(model_output)

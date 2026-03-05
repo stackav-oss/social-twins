@@ -1,3 +1,5 @@
+"""Classification criteria for safety and causal prediction tasks."""
+
 import torch
 from omegaconf import DictConfig, ListConfig
 
@@ -6,6 +8,8 @@ from scenetokens.schemas.output_schemas import ModelOutput
 
 
 class SafetyClassification(Criterion):
+    """Multi-class safety classification loss."""
+
     def __init__(self, config: DictConfig) -> None:
         super().__init__(config=config)
 
@@ -16,17 +20,18 @@ class SafetyClassification(Criterion):
         self.loss_function = torch.nn.CrossEntropyLoss(reduction="none")
 
     def forward(self, model_output: ModelOutput) -> torch.Tensor:
-        """Computes the multi-class Cross Entropy loss.
+        """Compute multi-class cross-entropy loss for safety labels.
 
-        B: batch size
-        N: number of elements per batch
-        C: number of classes
+        Notation:
+            B: batch size
+            N: number of elements per batch
+            C: number of classes
 
         Args:
-            model_output (ModelOutput): pydantic validator for model outputs.
+            model_output (ModelOutput): Structured model outputs.
 
         Returns:
-            torch.Tensor: scalar loss value
+            torch.Tensor: Scalar loss value.
         """
         safety_output = model_output.safety_output
         if self.safety_type == "individual":
@@ -49,6 +54,8 @@ class SafetyClassification(Criterion):
 
 
 class CausalClassification(Criterion):
+    """Multi-class causal classification loss."""
+
     def __init__(self, config: DictConfig) -> None:
         super().__init__(config=config)
 
@@ -58,17 +65,18 @@ class CausalClassification(Criterion):
         self.loss_function = torch.nn.CrossEntropyLoss(reduction="none")
 
     def forward(self, model_output: ModelOutput) -> torch.Tensor:
-        """Computes the multi-class Cross Entropy loss.
+        """Compute multi-class cross-entropy loss for causal labels.
 
-        B: batch size
-        N: number of elements per batch
-        C: number of classes
+        Notation:
+            B: batch size
+            N: number of elements per batch
+            C: number of classes
 
         Args:
-            model_output (ModelOutput): pydantic validator for model outputs.
+            model_output (ModelOutput): Structured model outputs.
 
         Returns:
-            torch.Tensor: scalar loss value
+            torch.Tensor: Scalar loss value.
         """
         causal_output = model_output.causal_output
 
@@ -76,13 +84,18 @@ class CausalClassification(Criterion):
         gt = causal_output.causal_gt.value.view(-1).long()
 
         # Logits: (B, N, C) → (B*N, C)
-        logits = causal_output.causal_logits.value.view(-1, causal_output.causal_logits.value.shape[-1])
+        logits = causal_output.causal_logits.value.view(
+            -1,
+            causal_output.causal_logits.value.shape[-1],
+        )
 
         loss = self.loss_function(logits, gt)
         return self.classification_weight * loss.mean()
 
 
 class FocalCausalClassification(Criterion):
+    """Focal loss for class-imbalanced causal classification."""
+
     def __init__(self, config: DictConfig) -> None:
         super().__init__(config=config)
 
@@ -99,21 +112,25 @@ class FocalCausalClassification(Criterion):
             )
             self.alpha = torch.tensor(self.alpha, dtype=torch.float32)
         else:
-            # if a single number, propagate per class
+            # If a single value is provided, broadcast it across classes.
             self.alpha = torch.tensor([self.alpha] * self.num_classes, dtype=torch.float32)
         self.loss_function = torch.nn.CrossEntropyLoss(reduction="none")
 
     def forward(self, model_output: ModelOutput) -> torch.Tensor:
-        """Computes the focal loss which is the binary cross entropy loss for imbalanced classes. It focuses on
-            missclassified elements. Reference: https://arxiv.org/pdf/1708.02002
+        """Compute focal cross-entropy loss for class-imbalanced causal labels.
+
+        Reference: https://arxiv.org/pdf/1708.02002
+
+        Notation:
             B: batch size
-            C: number of tokens/classes
+            N: number of elements per batch
+            C: number of classes
 
         Args:
-            model_output (ModelOutput): pydantic validator for model outputs.
+            model_output (ModelOutput): Structured model outputs.
 
         Returns:
-            loss (torch.tensor): loss value.
+            torch.Tensor: Scalar loss value.
         """
         causal_output = model_output.causal_output
 
@@ -127,7 +144,7 @@ class FocalCausalClassification(Criterion):
         ce_loss = self.loss_function(logits, gt)
         pt = torch.exp(-ce_loss)
 
-        # Apply alpha weighing
+        # Apply alpha weighting.
         self.alpha = self.alpha.to(logits.device)
 
         # Get alpha value per sample

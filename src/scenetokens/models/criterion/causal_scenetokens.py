@@ -14,8 +14,10 @@ from scenetokens.schemas.output_schemas import ModelOutput
 
 
 class CausalSceneTokens(Criterion):
-    """Criterion for CausalSceneTokens which combines the quantization loss from scenario and agent tokenization, the
-    trajectory prediction loss and the causal classifier loss.
+    """Criterion for CausalSceneTokens.
+
+    The total loss is the sum of reconstruction, trajectory prediction, and
+    causal classification losses.
     """
 
     def __init__(self, config: DictConfig) -> None:
@@ -24,22 +26,26 @@ class CausalSceneTokens(Criterion):
         self.reconstruction_criterion = Reconstruction(config)
         self.trajpred_criterion = TrajectoryPrediction(config)
 
-        # Classification loss is used for causal agent prediction. If 'use_focal_loss' will use FocalClassification
-        # which focuses on imbalanced classes
+        # Classification loss for causal-agent labels.
+        # If ``use_focal_loss`` is enabled, use focal loss for class-imbalanced data.
         self.use_focal_loss = config.get("use_focal_loss", False)
         self.classification_loss = (
             FocalCausalClassification(config) if self.use_focal_loss else CausalClassification(config)
         )
 
     def forward(self, model_output: ModelOutput) -> torch.Tensor:
-        """Computes the CausalSceneTokens loss which combines the quantization loss from scenario and agent
-        tokenization, the trajectory prediction loss and the causal classifier loss.
+        """Compute the CausalSceneTokens loss.
+
+        Notation:
+            L_rec: reconstruction loss
+            L_traj: trajectory prediction loss
+            L_cls: causal classification loss
 
         Args:
-            model_output (ModelOutput): pydantic validator for model outputs.
+            model_output (ModelOutput): Structured model outputs.
 
         Returns:
-            loss (torch.tensor): loss value.
+            torch.Tensor: Scalar loss value ``L_rec + L_traj + L_cls``.
         """
         reconstruction_loss = self.reconstruction_criterion(model_output)
         trajpred_loss = self.trajpred_criterion(model_output)

@@ -9,7 +9,7 @@ from scenetokens.schemas.output_schemas import ModelOutput, TokenizationOutput
 
 
 class Reconstruction(Criterion):
-    """Criterion for computing the reconstruction loss for both scenario and causal tokenization."""
+    """Criterion for reconstruction and tokenization losses."""
 
     def __init__(self, config: DictConfig) -> None:
         super().__init__(config=config)
@@ -19,19 +19,23 @@ class Reconstruction(Criterion):
         self.tokenization_weight = config.get("tokenization_weight", 1.0)
 
     def compute_tokenization_reconstruction(self, tokenization: TokenizationOutput) -> torch.Tensor:
-        """Computes the toknization reconstruction loss as the MSE + quantization loss.
+        """Compute tokenization reconstruction loss as MSE plus tokenization loss.
 
         Args:
-            tokenization (TokenizationOutput): encapsulates the tokenization values.
+            tokenization (TokenizationOutput): Tokenization outputs and auxiliary loss.
 
         Returns:
-            loss (torch.Tensor): the tokenization loss.
+            torch.Tensor: Tokenization reconstruction loss.
         """
         pre_ae_embedding = tokenization.input_embedding.value
         post_ae_embedding = tokenization.reconstructed_embedding.value
 
-        # Enforces the decoder to produce the pre-encoded value
-        loss = self.reconstruction_weight * F.mse_loss(pre_ae_embedding, post_ae_embedding, reduction=self.reduction)
+        # Encourage the decoder to reconstruct the pre-encoded embedding.
+        loss = self.reconstruction_weight * F.mse_loss(
+            pre_ae_embedding,
+            post_ae_embedding,
+            reduction=self.reduction,
+        )
 
         tokenization_loss = tokenization.loss
         if tokenization_loss is not None:
@@ -39,35 +43,36 @@ class Reconstruction(Criterion):
         return loss
 
     def forward(self, model_output: ModelOutput) -> torch.Tensor:
-        """Quantization Loss
-           B: batch size
-           Q: number of queries
-           C: number of tokens/classes
+        """Compute reconstruction and tokenization losses.
+
+        Notation:
+            L_scene: scenario-tokenization reconstruction loss
+            L_causal: causal-tokenization reconstruction loss
 
         Args:
-            model_output (ModelOutput): pydantic validator for model outputs.
+            model_output (ModelOutput): Structured model outputs.
 
         Returns:
-            loss (torch.tensor): loss value.
+            torch.Tensor: Scalar loss value.
         """
         scenario_tokenization_loss = None
         if model_output.tokenization_output is not None:
             scenario_tokenization_loss = self.compute_tokenization_reconstruction(model_output.tokenization_output)
 
-        # If training with the tokenizers with auxiliary guidance, include the causal tokenization reconstruction.
+        # If auxiliary guidance is enabled, include causal tokenization reconstruction.
         causal_tokenization_loss = None
         if model_output.causal_tokenization_output is not None:
             causal_tokenization_loss = self.compute_tokenization_reconstruction(model_output.causal_tokenization_output)
 
         assert (scenario_tokenization_loss is not None) or (causal_tokenization_loss is not None), (
-            "Disable reconstruction loss if both thare are no tokenization outputs."
+            "Disable reconstruction loss when neither tokenization output is available."
         )
 
-        # TODO: handle this better
+        # Return whichever branch is available.
         if scenario_tokenization_loss is None:
             return causal_tokenization_loss.mean()
         if causal_tokenization_loss is None:
             return scenario_tokenization_loss.mean()
 
-        # Final los shape: (1)
+        # Final scalar loss.
         return (scenario_tokenization_loss + causal_tokenization_loss).mean()
