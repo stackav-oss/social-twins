@@ -7,6 +7,7 @@ Example usage:
 See `docs/ANALYSIS.md` and 'configs/analysis.yaml' for more argument details.
 """
 
+import copy
 import random
 from pathlib import Path
 from time import time
@@ -23,16 +24,28 @@ log = utils.get_pylogger(__name__)
 pyrootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
 
-@hydra.main(version_base="1.3", config_path="configs", config_name="analysis.yaml")
-def main(config: DictConfig) -> float | None:
-    """Hydra's entrypoint for running scenario analysis training."""
-    log.info("Printing config tree with Rich! <cfg.extras.print_config=True>")
-    utils.print_config_tree(config, resolve=True, save_to_file=False)
-    random.seed(config.seed)
+def _run_experiment_analysis(config: DictConfig, output_path: Path) -> None:
+    """Runs analyses over the tokenized scenarios for a given experiment.
 
-    start = time()
-    output_path = Path(config.paths.analysis_path) / f"{config.split}_model-analysis"
+    Args:
+        config (DictConfig): The configuration object containing all necessary parameters for running the analyses.
+        output_path (Path): The path where the analysis results should be saved.
+    """
     output_path.mkdir(parents=True, exist_ok=True)
+
+    # Only load the batches if any of the analyses are set to true
+    if not any(
+        [
+            config.run_scenario_class_distribution,
+            config.run_token_consistency_analysis,
+            config.run_group_uniqueness_analysis,
+            config.run_intergroup_analysis,
+            config.run_dim_reduction_analysis,
+            config.run_score_analysis,
+        ]
+    ):
+        log.info("No analyses selected to run. Skipping batch loading and analysis.")
+        return
 
     # Loads scenario tokenized information
     log.info("Loading batches from %s", config.paths.batch_cache_path)
@@ -50,41 +63,16 @@ def main(config: DictConfig) -> float | None:
     # Produces a consistency analysis over tokenized groups.
     if config.run_token_consistency_analysis:
         log.info("Running tokenization consistency distribution analysis...")
-        consistency_matrix = utils.compute_token_consistency_matrix(config, batches)
-        utils.plot_heatmap(
-            consistency_matrix,
-            title="Token Asignment Consistency",
-            x_label="Group Mode",
-            y_label="Token Group",
-            cbar_label="Average Consistency Index",
-            output_filepath=output_path / f"token_consistency_matrix_{config.consistency_measure}.png",
-        )
+        utils.compute_token_consistency_matrix(config, batches, output_path)
 
     # Producess a distribution analysis over tokenized groups.
     if config.run_group_uniqueness_analysis:
         log.info("Running group uniqueness distribution analysis...")
-        group_uniqueness_index, group_uniqueness_counts = utils.compute_group_uniqueness(config, batches)
-        utils.plot_uniqueness_index(config, group_uniqueness_index, output_path)
-        utils.plot_heatmap(
-            group_uniqueness_counts,
-            title="Group Uniqueness Heatmap",
-            x_label="Group",
-            y_label="Vocabulary",
-            cbar_label="Uniqueness Index",
-            output_filepath=output_path / f"group_uniqueness_counts_{config.normalize_counts}.png",
-        )
+        utils.compute_group_uniqueness(config, batches, output_path)
 
     if config.run_intergroup_analysis:
         log.info("Running intergroup distribution analysis...")
-        intergroup_uniqueness = utils.compute_intergroup_uniqueness(config, batches)
-        utils.plot_heatmap(
-            intergroup_uniqueness,
-            title="Intergroup Uniqueness Heatmap",
-            x_label="Group",
-            y_label="Group",
-            cbar_label="Uniqueness Index",
-            output_filepath=output_path / "intergroup_uniqueness.png",
-        )
+        utils.compute_intergroup_uniqueness(config, batches, output_path)
 
     # Produces a visualization of the scenario embeddings using dimensionality reduction methods.
     if config.run_dim_reduction_analysis:
@@ -99,8 +87,35 @@ def main(config: DictConfig) -> float | None:
         if config.viz_scored_scenarios:
             utils.plot_tokenized_scenarios_by_score_percentile(config, batches, score_analysis, output_path)
 
-    log.info("Total time: %s second", time() - start)
-    log.info("Process completed!")
+
+@hydra.main(version_base="1.3", config_path="configs", config_name="analysis.yaml")
+def main(config: DictConfig) -> float | None:
+    """Hydra's entrypoint for running scenario analysis training."""
+    analysis_paths = {}
+
+    # Run each analysis for each experiment specified in the config, and save the results to the output path.
+    for experiment_dir in config.experiment_dirs:
+        random.seed(config.seed)
+        log.info("Running analysis for experiment: %s", experiment_dir)
+        start = time()
+
+        # Print the configuration, just to validate that the correct experiment_dir is being used for the analysis.
+        experiment_config = copy.deepcopy(config)
+        experiment_config.paths.experiment_dir = experiment_dir
+        utils.print_config_tree(
+            experiment_config,
+            resolve=True,
+            save_to_file=False,
+            print_order=["analysis", "paths"],
+        )
+
+        # Run the tokenization analysis for the given experiment.
+        output_path = Path(experiment_config.paths.analysis_path) / f"{experiment_config.split}_model-analysis"
+        _run_experiment_analysis(experiment_config, output_path)
+        analysis_paths[experiment_dir] = output_path
+
+        log.info("Total time: %s second", time() - start)
+        log.info("Process completed!")
 
 
 if __name__ == "__main__":
