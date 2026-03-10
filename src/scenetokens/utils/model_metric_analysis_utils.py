@@ -260,219 +260,25 @@ def plot_sample_selection_sweep_lineplot(config: DictConfig, log: Logger, output
         _plot_joint_sample_selection_sweep_lineplot(config, log, output_path, metrics_dataframes)
 
 
-def _collect_heatmap_data(  # noqa: PLR0913
-    metrics_df: pd.DataFrame,
-    config: DictConfig,
-    retention_pcts: list[float],
-    models: list[str],
-    strategies: list[str],
-    column: str,
-) -> tuple[dict[float, np.ndarray], dict[int, float | None], list[float]]:
-    """Collect strategy and baseline data for heatmap visualization.
-
-    Args:
-        metrics_df (pd.DataFrame): DataFrame containing the metrics data.
-        config (DictConfig): Configuration object with sample_selection_benchmark parameter.
-        retention_pcts (list[float]): List of retention percentages to collect data for.
-        models (list[str]): List of model names to process.
-        strategies (list[str]): List of sample selection strategies to process.
-        column (str): Column name in metrics_df to extract values from.
-
-    Returns:
-        tuple[dict[float, np.ndarray], dict[int, float | None], list[float]]: A tuple containing:
-            - heatmap_data: Dictionary mapping retention percentages to (num_models, num_strategies) arrays.
-            - base_values: Dictionary mapping model indices to baseline values (or None if missing).
-            - all_values: List of all collected metric values for determining color scaling.
-    """
-    heatmap_data = {}
-    base_values = {}
-    all_values = []
-
-    # Build strategy heatmap data for each retention percentage.
-    for pct in retention_pcts:
-        data = np.full((len(models), len(strategies)), np.nan)
-        for i, model in enumerate(models):
-            for j, strategy in enumerate(strategies):
-                run_name = f"{config.sample_selection_benchmark}_{model}_{strategy}_{pct}"
-                row = metrics_df[metrics_df["Name"] == run_name]
-                if not row.empty and column in row.columns:
-                    val = row.iloc[0][column]
-                    data[i, j] = val
-                    all_values.append(val)
-        heatmap_data[pct] = data
-
-    # Build baseline-only data (one baseline value per model).
-    for i, model in enumerate(models):
-        base_name = f"{config.sample_selection_benchmark}_{model}"
-        row = metrics_df[metrics_df["Name"] == base_name]
-        if not row.empty and column in row.columns:
-            val = row[column].min()
-            base_values[i] = val
-            all_values.append(val)
-        else:
-            base_values[i] = None
-
-    return heatmap_data, base_values, all_values
-
-
-def _plot_strategy_heatmaps(  # noqa: PLR0913
-    axes: np.ndarray,
-    heatmap_data: dict[float, np.ndarray],
-    retention_pcts: list[float],
-    models: list[str],
-    strategies: list[str],
-    vmin: float,
-    vmax: float,
-    cmap: plt.cm.ScalarMappable,
-    highlight_color: str,
-    base_values: dict[int, float | None],
-    config: DictConfig,
-) -> None:
-    """Plot individual strategy heatmaps for each retention percentage.
-
-    Args:
-        axes (np.ndarray): Array of matplotlib Axes objects to plot on.
-        heatmap_data (dict[float, np.ndarray]): Dictionary mapping retention percentages to data arrays.
-        retention_pcts (list[float]): List of retention percentages.
-        models (list[str]): List of model names for y-axis labels.
-        strategies (list[str]): List of strategy names for x-axis labels.
-        vmin (float): Minimum value for colormap scaling.
-        vmax (float): Maximum value for colormap scaling.
-        cmap (plt.cm.ScalarMappable): Colormap to use for heatmaps.
-        highlight_color (str): Color to use for highlighting best strategies that improve over baseline.
-        base_values (dict[int, float | None]): Dictionary mapping model indices to baseline values.
-        config (DictConfig): Configuration object with settings like add_rectangle_annotation.
-
-    Returns:
-        None
-    """
-    for k, (ax, pct) in enumerate(zip(axes[: len(retention_pcts)], retention_pcts, strict=False)):
-        data = heatmap_data[pct]
-        masked_data = np.ma.masked_invalid(data)
-        im = ax.imshow(masked_data, aspect="auto", cmap=cmap, vmin=vmin, vmax=vmax)
-        im.cmap.set_bad(color="#eeeeee")
-
-        ax.set_title(f"{int(pct * 100)}%", pad=6)
-        ax.set_xticks(range(len(strategies)))
-        mapped_strategies = [STRATEGY_NAME_MAP.get(s, s) for s in strategies]
-        ax.set_xticklabels(mapped_strategies, rotation=35, ha="right", rotation_mode="anchor")
-
-        if k == 0:
-            ax.set_yticks(range(len(models)))
-            mapped_models = [MODEL_NAME_MAP.get(m, m) for m in models]
-            ax.set_yticklabels(mapped_models)
-            ax.tick_params(axis="y", pad=6)
-        else:
-            ax.set_yticks([])
-
-        _annotate_best_strategies(ax, data, base_values, highlight_color, config)
-
-        ax.set_xticks(np.arange(-0.5, len(strategies), 1), minor=True)
-        ax.set_yticks(np.arange(-0.5, len(models), 1), minor=True)
-        ax.grid(which="minor", color="black", alpha=1, linewidth=1)
-        ax.grid(which="major", color="black", alpha=0.01, linewidth=1)
-        ax.tick_params(which="minor", bottom=False, left=False)
-
-
-def _annotate_best_strategies(
-    ax: Axes,
-    data: np.ndarray,
-    base_values: dict[int, float | None],
-    highlight_color: str,
-    config: DictConfig,
-) -> None:
-    """Annotate best strategy per model row with markers and optional rectangles.
-
-    Args:
-        ax (Axes): Matplotlib Axes object to annotate on.
-        data (np.ndarray): 2D array of shape (num_models, num_strategies) with metric values.
-        base_values (dict[int, float | None]): Dictionary mapping model indices to baseline values.
-        highlight_color (str): Color to use for annotations of strategies better than baseline.
-        config (DictConfig): Configuration object with add_rectangle_annotation setting.
-
-    Returns:
-        None
-    """
-    for i in range(data.shape[0]):
-        row = data[i]
-        if np.all(np.isnan(row)):
-            continue
-
-        j = np.nanargmin(row)
-        best_val = row[j]
-        base_val = base_values.get(i)
-
-        edge_color, marker_color = "black", "black"
-        if base_val is not None and best_val < base_val:
-            edge_color, marker_color = highlight_color, highlight_color
-
-        if config.add_rectangle_annotation:
-            ax.add_patch(Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False, edgecolor=edge_color, linewidth=3))
-        ax.plot(j, i, marker="*", ms=18, mec=marker_color, mew=1, c=marker_color, zorder=10)
-
-
-def _plot_baseline_heatmap(  # noqa: PLR0913
-    ax_base: Axes,
-    vmin: float,
-    vmax: float,
-    cmap: plt.cm.ScalarMappable,
-    models: list[str],
-    base_values: dict[int, float | None],
-) -> None:
-    """Plot baseline-only heatmap as a single column.
-
-    Args:
-        ax_base (Axes): Matplotlib Axes object to plot the baseline heatmap on.
-        vmin (float): Minimum value for colormap scaling.
-        vmax (float): Maximum value for colormap scaling.
-        cmap (plt.cm.ScalarMappable): Colormap to use for the heatmap.
-        models (list[str]): List of model names (used for sizing).
-        base_values (dict[int, float | None]): Dictionary mapping model indices to baseline metric values.
-
-    Returns:
-        None
-    """
-    base_data = np.full((len(models), 1), np.nan)
-    for i, base_val in base_values.items():
-        if base_val is not None:
-            base_data[i, 0] = base_val
-
-    masked_base = np.ma.masked_invalid(base_data)
-    im = ax_base.imshow(masked_base, aspect="auto", cmap=cmap, vmin=vmin, vmax=vmax)
-    im.cmap.set_bad(color="#eeeeee")
-    ax_base.set_title("Base", pad=6)
-    ax_base.set_xticks([])
-    ax_base.set_yticks([])
-    ax_base.grid(which="minor", color="black", alpha=1, linewidth=1)
-    ax_base.grid(which="major", color="black", alpha=0.01, linewidth=1)
-    ax_base.set_xticks(np.arange(-0.5, 1, 1), minor=True)
-    ax_base.set_yticks(np.arange(-0.5, len(models), 1), minor=True)
-
-
-def _plot_sample_selection_sweep_heatmap(
+def _plot_sample_selection_sweep_heatmap(  # noqa: PLR0912, PLR0915
     config: DictConfig, log: Logger, output_path: Path, metrics_df: pd.DataFrame, suffix: str = ""
 ) -> None:
-    """Plot per-file sample-selection heatmaps for each ``(split, metric)`` pair.
-
-    For each retention percentage ``p`` in ``config.sample_retention_percentages``, one strategy heatmap of shape
-    ``(num_models, num_strategies)`` is created. Cell ``(i, j)`` stores the metric value for
-    ``{benchmark}_{model_i}_{strategy_j}_{p}``. A final baseline-only column ("Base") is added on the right.
-    Lower metric values are treated as better when selecting the starred strategy per row.
+    """Plot heatmaps comparing sample selection strategies across retention percentages for each (model, split, metric).
 
     Args:
-        config (DictConfig): Encapsulates model-analysis configuration parameters.
+        config (DictConfig): encapsulates model analysis configuration parameters.
         log (Logger): Logger for logging analysis information.
         output_path (Path): Directory to save the generated plots.
         metrics_df (pd.DataFrame): DataFrame containing the metrics data.
-        suffix (str): Suffix appended to output filenames to distinguish different metrics files.
+        suffix (str): Suffix to append to output filenames to distinguish different metrics files.
     """
     output_path = output_path / "sample_selection_heatmaps"
     output_path.mkdir(parents=True, exist_ok=True)
 
     cmap = sns.color_palette(config.get("heatmap_colormap", "mako_r"), as_cmap=True)
     metrics = config.trajectory_forecasting_metrics + config.other_metrics
-    log.info("Plotting sample selection sweep heatmaps for metrics: %s", metrics)
 
+    log.info("Plotting sample selection sweep heatmaps for metrics: %s", metrics)
     retention_pcts = list(map(float, config.sample_retention_percentages))
     models = config.models_to_compare
     strategies = config.sample_selection_strategies_to_compare
@@ -485,49 +291,124 @@ def _plot_sample_selection_sweep_heatmap(
         for metric in metrics:
             column = f"{split}/{metric}" if metric in config.trajectory_forecasting_metrics else metric
 
-            heatmap_data, base_values, all_values = _collect_heatmap_data(
-                metrics_df, config, retention_pcts, models, strategies, column
-            )
+            heatmap_data = {}
+            all_values = []
+
+            # Create all strategy heatmaps
+            for pct in retention_pcts:
+                data = np.full((len(models), len(strategies)), np.nan)
+                for i, model in enumerate(models):
+                    for j, strategy in enumerate(strategies):
+                        run_name = f"{config.sample_selection_benchmark}_{model}_{strategy}_{pct}"
+                        row = metrics_df[metrics_df["Name"] == run_name]
+                        if not row.empty and column in row.columns:
+                            val = row.iloc[0][column]
+                            data[i, j] = val
+                            all_values.append(val)
+                heatmap_data[pct] = data
+
+            # Base-only heatmap
+            base_data = np.full((len(models), 1), np.nan)
+            base_values = {}
+            for i, model in enumerate(models):
+                base_name = f"{config.sample_selection_benchmark}_{model}"
+                row = metrics_df[metrics_df["Name"] == base_name]
+                if not row.empty and column in row.columns:
+                    val = row[column].min()
+                    base_data[i, 0] = val
+                    base_values[i] = val
+                    all_values.append(val)
+                else:
+                    base_values[i] = None
+
             if not all_values:
                 log.warning("No data found for metric=%s, split=%s", metric, split)
                 continue
 
-            vmin, vmax = np.nanmin(all_values), np.nanmax(all_values)
-            num_models, num_pcts = len(models), len(retention_pcts)
+            vmin = np.nanmin(all_values)
+            vmax = np.nanmax(all_values)
+
+            # Figure layout
+            num_pcts = len(retention_pcts)
             fig, axes = plt.subplots(
                 1,
                 num_pcts + 1,
-                figsize=(3.8 * num_pcts + 2.2, 0.65 * num_models + 2.2),
+                figsize=(3.8 * num_pcts + 2.2, 0.65 * len(models) + 2.2),
                 squeeze=False,
                 gridspec_kw={"width_ratios": [1] * num_pcts + [0.45]},
             )
+            axes = axes[0]
 
-            _plot_strategy_heatmaps(
-                axes,
-                heatmap_data,
-                retention_pcts,
-                models,
-                strategies,
-                vmin,
-                vmax,
-                cmap,
-                highlight_color,
-                base_values,
-                config,
-            )
+            # Plot strategy heatmaps
+            for k, (ax, pct) in enumerate(zip(axes[:num_pcts], retention_pcts, strict=False)):
+                data = heatmap_data[pct]
+                masked_data = np.ma.masked_invalid(data)
+                im = ax.imshow(masked_data, aspect="auto", cmap=cmap, vmin=vmin, vmax=vmax)
+                im.cmap.set_bad(color="#eeeeee")
 
-            _plot_baseline_heatmap(axes[-1], vmin, vmax, cmap, models, base_values)
+                ax.set_title(f"{int(pct * 100)}%", pad=6)
+                ax.set_xticks(range(len(strategies)))
+                mapped_strategies = [STRATEGY_NAME_MAP.get(s, s) for s in strategies]
+                ax.set_xticklabels(mapped_strategies, rotation=35, ha="right", rotation_mode="anchor")
 
-            # Plot colorbar and save figure with legend and formatting
+                if k == 0:
+                    ax.set_yticks(range(len(models)))
+                    mapped_models = [MODEL_NAME_MAP.get(m, m) for m in models]
+                    ax.set_yticklabels(mapped_models)
+                    ax.tick_params(axis="y", pad=6)
+                else:
+                    ax.set_yticks([])
+
+                # Highlight best per row
+                for i in range(data.shape[0]):
+                    row = data[i]
+                    if np.all(np.isnan(row)):
+                        continue
+
+                    j = np.nanargmin(row)
+                    best_val = row[j]
+                    base_val = base_values.get(i)
+                    edge_color, marker_color = "black", "black"
+                    if base_val is not None and best_val < base_val:
+                        edge_color = highlight_color
+                        marker_color = highlight_color
+
+                    if config.add_rectangle_annotation:
+                        ax.add_patch(Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False, edgecolor=edge_color, linewidth=3))
+                    ax.plot(j, i, marker="*", ms=18, mec=marker_color, mew=1, c=marker_color, zorder=10)
+
+                # Subtle grid
+                ax.set_xticks(np.arange(-0.5, len(strategies), 1), minor=True)
+                ax.set_yticks(np.arange(-0.5, len(models), 1), minor=True)
+                ax.grid(which="minor", color="black", alpha=1, linewidth=1)
+                ax.grid(which="major", color="black", alpha=0.01, linewidth=1)
+                ax.tick_params(which="minor", bottom=False, left=False)
+
+            # Baseline heatmap
+            ax_base = axes[-1]
+            masked_base = np.ma.masked_invalid(base_data)
+            im = ax_base.imshow(masked_base, aspect="auto", cmap=cmap, vmin=vmin, vmax=vmax)
+            im.cmap.set_bad(color="#eeeeee")
+            ax_base.set_title("Base", pad=6)
+            ax_base.set_xticks([])
+            ax_base.set_yticks([])
+            ax_base.grid(which="minor", color="black", alpha=1, linewidth=1)
+            ax_base.grid(which="major", color="black", alpha=0.01, linewidth=1)
+            ax_base.set_xticks(np.arange(-0.5, 1, 1), minor=True)
+            ax_base.set_yticks(np.arange(-0.5, len(models), 1), minor=True)
+
+            # Colorbar
             cax = fig.add_axes(rect=(0.92, 0.25, 0.03, 0.61))
-            cbar = fig.colorbar(fig.axes[1].images[0], cax=cax)
+            cbar = fig.colorbar(im, cax=cax)
             cbar.ax.tick_params(labelsize=12)
 
+            # Legend handles to show best strategies
             legend = [
                 Line2D([0], [0], marker="*", color=highlight_color, markersize=10, label="Best strategy > base"),
                 Line2D([0], [0], marker="*", color="black", markersize=10, label="Best strategy ≥ base"),
             ]
 
+            # Save figure
             output_file = output_path / f"{metric}_{subsplit}{suffix}.png"
             fig.legend(handles=legend, loc="upper right", bbox_to_anchor=(0.99, 0.99), frameon=False, fontsize=9)
             fig.suptitle(f"{metric.replace('_', ' ')} — {split}", y=1.02)
@@ -535,25 +416,20 @@ def _plot_sample_selection_sweep_heatmap(
             fig.savefig(output_file, dpi=200, bbox_inches="tight")
             plt.close(fig)
 
+            log.info("Saved heatmaps to %s", output_file)
+
 
 def _get_baseline_values(
     config: DictConfig, metrics_dfs: dict[str, pd.DataFrame]
 ) -> dict[str, dict[str, float | None]]:
-    """Extract baseline reference values for each ``(model, split, metric)`` combination.
-
-    Notation:
-        - Let ``c`` be the metric column for a ``(split, metric)`` pair.
-        - Let ``b[m, c, k]`` be the baseline value for model ``m`` and column ``c`` in dataframe ``k``.
-        - The returned reference is ``B[m, c] = min_k b[m, c, k]`` (lower is assumed better).
-
-    If a baseline value is missing in all dataframes for a given ``(m, c)``, ``+inf`` is retained as a sentinel.
+    """Extract baseline metric values for each (model, split, metric) from the metrics dataframes.
 
     Args:
-        config (DictConfig): Encapsulates model-analysis configuration parameters.
-        metrics_dfs (dict[str, pd.DataFrame]): Dictionary of metrics dataframes keyed by selector/file label.
+        config (DictConfig): encapsulates model analysis configuration parameters.
+        metrics_dfs (dict[str, pd.DataFrame]): Dictionary of DataFrames containing the metrics data for each strategy.
 
     Returns:
-        dict[str, dict[str, float | None]]: Nested mapping ``model -> metric-column -> baseline value``.
+        dict[str, dict[str, float | None]]: Nested dictionary mapping model -> (split/metric) -> baseline value.
     """
     metrics = config.trajectory_forecasting_metrics + config.other_metrics
     models = config.models_to_compare
@@ -567,8 +443,8 @@ def _get_baseline_values(
             base_name = f"{config.sample_selection_benchmark}_{model}"
             row = metrics_df[metrics_df["Name"] == base_name]
 
-            # Assumes lower-is-better for all metrics. If higher-is-better metrics are added,
-            # this aggregation rule should be updated.
+            # NOTE: this assumes lower is better for all metrics, which is true for our current metrics but may need to
+            # be adjusted if we add new ones where higher is better
             current_metric = base_values[model].get(column, float("inf"))
             available_metric = float("inf")
             if not row.empty and column in row.columns:
@@ -578,27 +454,21 @@ def _get_baseline_values(
     return base_values
 
 
-def _plot_sample_selection_sweep_gap_to_baseline_heatmap(  # noqa: PLR0912, PLR0915
+def _plot_sample_selection_sweep_heatmap_baseline_gap(  # noqa: PLR0912, PLR0915
     config: DictConfig,
     log: Logger,
     output_path: Path,
     metrics_dfs: dict[str, pd.DataFrame],
 ) -> None:
-    """Plot cross-file heatmaps of strategy gap-to-baseline for each ``(split, metric)`` pair.
-
-    Rows represent ``(model, selector)`` pairs (one row per model for each dataframe in ``metrics_dfs``), and columns
-    represent sample-selection strategies. For each retention percentage ``p``, each heatmap cell stores the relative
-    gap (in percent) between strategy and baseline:
-
-    ``gap = 100 * (value_strategy - value_baseline) / (abs(value_baseline) + SMALL_EPSILON)``.
-
-    Negative values indicate improvement over baseline; positive values indicate degradation.
+    """Plot heatmaps comparing sample selection strategies across retention percentages for each (model, split, metric).
+    Shows the gap between each strategy and the baseline model.
 
     Args:
-        config (DictConfig): Encapsulates model-analysis configuration parameters.
+        config (DictConfig): encapsulates model analysis configuration parameters.
         log (Logger): Logger for logging analysis information.
         output_path (Path): Directory to save the generated plots.
-        metrics_dfs (dict[str, pd.DataFrame]): Dictionary of metrics dataframes keyed by selector/file label.
+        metrics_dfs (dict[str, pd.DataFrame]): Dictionary of DataFrames containing the metrics data for each strategy.
+        suffix (str): Suffix to append to output filenames to distinguish different metrics files.
     """
     output_path = output_path / "sample_selection_heatmaps_baseline_gap"
     output_path.mkdir(parents=True, exist_ok=True)
@@ -630,7 +500,7 @@ def _plot_sample_selection_sweep_gap_to_baseline_heatmap(  # noqa: PLR0912, PLR0
 
         heatmap_data = {}
         all_gaps = []
-        # Build strategy-vs-baseline gap heatmaps for each retention percentage.
+        # Create gap heatmaps (strategy vs baseline)
         for pct in retention_pcts:
             data = np.full((num_models, num_strategies), np.nan)
             for i, (model, metrics_df) in enumerate(product(models, metrics_dfs.values())):
@@ -643,7 +513,7 @@ def _plot_sample_selection_sweep_gap_to_baseline_heatmap(  # noqa: PLR0912, PLR0
                     row = metrics_df[metrics_df["Name"] == run_name]
                     if not row.empty and column in row.columns:
                         strategy_value = row.iloc[0][column]
-                        # Compute percentage gap: 100 * (v_strategy - v_base) / (|v_base| + epsilon).
+                        # Compute gap: (strategy_val - baseline_val) / baseline_val * 100
                         gap = ((strategy_value - base_value) / (abs(base_value) + SMALL_EPSILON)) * 100
                         data[i, j] = gap
                         all_gaps.append(gap)
@@ -660,13 +530,13 @@ def _plot_sample_selection_sweep_gap_to_baseline_heatmap(  # noqa: PLR0912, PLR0
         # vmin = math.floor(vmin / 10) * 10
         # vmax = math.ceil(vmax / 10) * 10
 
-        # Center colormap at 0 so improvements (<0) and degradations (>0) are symmetrically scaled.
+        # Center colormap around 0
         vabs = max(abs(vmin), abs(vmax))
         vmin, vmax = -vabs, vabs
 
         # Figure layout
         x_size = 4.0 * num_retention_pcts + 2.2
-        y_size = 0.7 * num_models + 1
+        y_size = 0.7 * num_models + 2.2
         fig, axes = plt.subplots(1, num_retention_pcts, figsize=(x_size, y_size), squeeze=False)
         axes = axes[0]
 
@@ -690,14 +560,14 @@ def _plot_sample_selection_sweep_gap_to_baseline_heatmap(  # noqa: PLR0912, PLR0
             else:
                 ax.set_yticks([])
 
-            # Highlight the per-row strategy with minimum gap (largest improvement vs baseline).
+            # Highlight best per row (minimum gap, closest to baseline)
             for i in range(data.shape[0]):
                 row = data[i]
                 if np.all(np.isnan(row)):
                     continue
 
-                # Using argmin(gap) prioritizes the most negative gap.
-                j = np.nanargmin(row)
+                # j = np.nanargmin(np.abs(row))
+                j = np.nanargmin(row)  # if we want to highlight the best strategy even if it's worse than baseline
                 gap_val = row[j]
 
                 # Highlight if gap is negative (improvement over baseline)
@@ -760,20 +630,16 @@ def _plot_sample_selection_sweep_gap_to_baseline_heatmap(  # noqa: PLR0912, PLR0
 
 
 def plot_sample_selection_sweep_heatmap(config: DictConfig, log: Logger, output_path: Path) -> None:
-    """Generate sample-selection heatmaps from one or more sweep metric CSV files.
+    """Creates heatmaps comparing sample selection sweeps for each (model, split, retention_percentage, metric).
 
-    For each input CSV, this function creates per-file metric-value heatmaps via
-    :func:`_plot_sample_selection_sweep_heatmap`. If multiple CSV files are provided, it additionally creates
-    combined gap-to-baseline heatmaps via :func:`_plot_sample_selection_sweep_gap_to_baseline_heatmap`.
-
-    Notation:
-        - ``P = len(config.sample_retention_percentages)`` is the number of retention-percentage panels.
-        - Lower metric values are treated as better in downstream row-wise highlighting.
+    For each split and metric, generates P heatmaps (one per retention percentage) with rows as models, columns as
+    strategies, and color representing metric values. Also generates baseline gap heatmaps when multiple dataframes are
+    available.
 
     Args:
-        config (DictConfig): Encapsulates model-analysis configuration parameters.
+        config (DictConfig): encapsulates model analysis configuration parameters.
         log (Logger): Logger for logging analysis information.
-        output_path (Path): Directory where generated plots are saved.
+        output_path (Path): Directory to save the generated plots.
     """
     plt.rcParams.update(
         {
@@ -785,22 +651,22 @@ def plot_sample_selection_sweep_heatmap(config: DictConfig, log: Logger, output_
         }
     )
 
-    # Load each metrics CSV and create per-file heatmaps.
+    # Load metrics CSV
     metrics_dataframes = {}
     for file in config.sample_selection_files:
-        log.info("Processing sample selection sweep lineplots for file: %s", file)
+        log.info("Processing sample selection sweep heatmaps for file: %s", file)
         metrics_filepath = Path(file)
         if not metrics_filepath.exists():
             log.error("Sample selection CSV not found at %s", metrics_filepath)
             return
         metrics_df = pd.read_csv(metrics_filepath)
-        suffix = Path(file).stem.split("_")[0]  # Selector label extracted from the filename stem.
+        suffix = Path(file).stem.split("_")[0]  # contains the name of the selector
         metrics_dataframes[suffix] = metrics_df
         _plot_sample_selection_sweep_heatmap(config, log, output_path, metrics_df, f"_{suffix}")
 
-    # If multiple selection sweep files were provided, create a combined heatmap showing the gap to baseline
+    # If multiple metrics files are available, create heatmaps showing gap to baseline across selectors
     if len(metrics_dataframes) > 1:
-        _plot_sample_selection_sweep_gap_to_baseline_heatmap(config, log, output_path, metrics_dataframes)
+        _plot_sample_selection_sweep_heatmap_baseline_gap(config, log, output_path, metrics_dataframes)
 
 
 def _plot_distribution_shift_comparison(
