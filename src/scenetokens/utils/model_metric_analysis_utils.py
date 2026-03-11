@@ -17,20 +17,13 @@ from scenetokens.utils.constants import SMALL_EPSILON
 
 MODEL_NAME_MAP = {
     "autobot": "AutoBot",
-    "wayformer": "Wayformer",
     "scenetransformer": "SceneTransformer",
+    "wayformer": "Wayformer",
     "scenetokens": "ST",
     "causal-scenetokens": "Causal-ST",
     "safe-scenetokens": "Safe-ST",
 }
 
-STRATEGY_NAME_MAP = {
-    "random_drop": "Random",
-    "token_random_drop": "Token(R)",
-    "simple_token_jaccard_drop": "Token(SJ)",
-    "simple_token_hamming_drop": "Token(SH)",
-    "gumbel_token_jaccard_drop": "Token(GJ)",
-    "gumbel_token_hamming_drop": "Token(GH)",
 MODEL_SIZE_MAP = {
     "AutoBot": "1.5M",
     "SceneTransformer": "7.6M",
@@ -43,6 +36,15 @@ MODEL_SIZE_MAP = {
 BENCHMARK_NAME_MAP = {
     "causal-benchmark-labeled": "CausalAgents",
     "ego-safeshift-causal-benchmark": "EgoSafeShift",
+}
+
+STRATEGY_NAME_MAP = {
+    "random_drop": "Random",
+    "token_random_drop": "Token(R)",
+    "simple_token_jaccard_drop": "Token(SJ)",
+    "simple_token_hamming_drop": "Token(SH)",
+    "gumbel_token_jaccard_drop": "Token(GJ)",
+    "gumbel_token_hamming_drop": "Token(GH)",
 }
 
 
@@ -264,7 +266,7 @@ def plot_sample_selection_sweep_lineplot(config: DictConfig, log: Logger, output
             log.error("Sample selection CSV not found at %s", metrics_filepath)
             return
         metrics_df = pd.read_csv(metrics_filepath)
-        suffix = Path(file).stem.split("_")[-1]
+        suffix = Path(file).stem.split("_")[0]  # contains the name of the selector
         metrics_dataframes[suffix] = metrics_df
         _plot_sample_selection_sweep_lineplot(config, log, output_path, metrics_df, f"_{suffix}")
 
@@ -623,6 +625,229 @@ def _plot_sample_selection_sweep_heatmap_baseline_gap(  # noqa: PLR0912, PLR0915
         log.info("Saved heatmaps to %s", output_file)
 
 
+def _plot_sample_selection_sweep_distribution_gap(  # noqa: PLR0912, PLR0915
+    config: DictConfig,
+    log: Logger,
+    output_path: Path,
+    metrics_dfs: dict[str, pd.DataFrame],
+) -> None:
+    """Plot heatmaps comparing sample selection strategies across retention percentages for each (model, metric).
+    Shows the gap between two splits (split_b - split_a).
+
+    Args:
+        config (DictConfig): encapsulates model analysis configuration parameters.
+        log (Logger): Logger for logging analysis information.
+        output_path (Path): Directory to save the generated plots.
+        metrics_dfs (dict[str, pd.DataFrame]): Dictionary of DataFrames containing the metrics data for each strategy.
+    """
+    splits = config.sample_selection_splits_to_compare
+    if len(splits) < 2:  # noqa: PLR2004
+        log.warning("Need at least two splits to compute distribution gap, got: %s", splits)
+        return
+
+    id_split, ood_split = splits[0], splits[1]
+    id_subsplit = id_split.split("/")[-1]
+    ood_subsplit = ood_split.split("/")[-1]
+
+    output_path = output_path / "sample_selection_heatmaps_distribution_gap"
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    cmap = sns.color_palette(config.get("heatmap_colormap", "RdYlGn_r"), as_cmap=True)
+    highlight_color = config.get("highlight_color", "dodgerblue")
+
+    metrics = config.trajectory_forecasting_metrics
+    retention_pcts = list(map(float, config.sample_retention_percentages))
+    models = config.models_to_compare
+    strategies = config.sample_selection_strategies_to_compare
+    log.info("Plotting sample selection sweep heatmaps (distribution gap) for metrics: %s", metrics)
+
+    num_models = len(models) * len(metrics_dfs)
+    num_strategies = len(strategies)
+    num_retention_pcts = len(retention_pcts)
+    model_list = []
+    for model, selector in product(models, metrics_dfs.keys()):
+        model_name = f"{MODEL_NAME_MAP.get(model, model)} ({selector})"
+        model_list.append(model_name)
+
+    for metric in metrics:
+        id_column = f"{id_split}/{metric}"
+        ood_column = f"{ood_split}/{metric}"
+        log.info("Creating distribution gap heatmaps for metric=%s (%s vs %s)", metric, id_split, ood_split)
+
+        # Compute baseline gaps for each model
+        baseline_gaps = {}
+        baseline_id_values = {}
+        for model, metrics_df in product(models, metrics_dfs.values()):
+            base_name = f"{config.sample_selection_benchmark}_{model}"
+            base_row = metrics_df[metrics_df["Name"] == base_name]
+            if not base_row.empty and id_column in base_row.columns and ood_column in base_row.columns:
+                id_val = base_row.iloc[0][id_column]
+                ood_val = base_row.iloc[0][ood_column]
+                baseline_gap = ((ood_val - id_val) / (abs(id_val) + SMALL_EPSILON)) * 100
+                baseline_gaps[model] = baseline_gap
+                baseline_id_values[model] = id_val
+            else:
+                baseline_gaps[model] = None
+                baseline_id_values[model] = None
+
+        heatmap_data = {}
+        all_gaps = []
+
+        # Create gap heatmaps (split_b vs split_a)
+        for pct in retention_pcts:
+            data = np.full((num_models, num_strategies), np.nan)
+            for i, (model, metrics_df) in enumerate(product(models, metrics_dfs.values())):
+                for j, strategy in enumerate(strategies):
+                    run_name = f"{config.sample_selection_benchmark}_{model}_{strategy}_{pct}"
+                    row = metrics_df[metrics_df["Name"] == run_name]
+                    if not row.empty and id_column in row.columns and ood_column in row.columns:
+                        id_val = row.iloc[0][id_column]
+                        ood_val = row.iloc[0][ood_column]
+                        gap = ((ood_val - id_val) / (abs(id_val) + SMALL_EPSILON)) * 100
+                        data[i, j] = gap
+                        all_gaps.append(gap)
+            heatmap_data[pct] = data
+
+        if not all_gaps:
+            log.warning("No data found for metric=%s (%s vs %s)", metric, id_split, ood_split)
+            continue
+
+        vmin = np.nanmin(all_gaps)
+        vmax = np.nanmax(all_gaps)
+
+        # Center colormap around 0
+        vabs = max(abs(vmin), abs(vmax))
+        vmin, vmax = -vabs, vabs
+
+        # Figure layout
+        x_size = 4.0 * num_retention_pcts + 2.2
+        y_size = 0.7 * num_models + 2.2
+        fig, axes = plt.subplots(1, num_retention_pcts, figsize=(x_size, y_size), squeeze=False)
+        axes = axes[0]
+
+        # Plot strategy heatmaps
+        im = None
+        for k, (ax, pct) in enumerate(zip(axes[:num_retention_pcts], retention_pcts, strict=False)):
+            data = heatmap_data[pct]
+            masked_data = np.ma.masked_invalid(data)
+            im = ax.imshow(masked_data, aspect="auto", cmap=cmap, vmin=vmin, vmax=vmax)
+            im.cmap.set_bad(color="#eeeeee")
+
+            ax.set_title(f"{int(pct * 100)}%", pad=6, fontsize=20)
+            ax.set_xticks(range(num_strategies))
+            mapped_strategies = [STRATEGY_NAME_MAP.get(s, s) for s in strategies]
+            ax.set_xticklabels(mapped_strategies)
+
+            if k == 0:
+                ax.set_yticks(range(num_models))
+                ax.set_yticklabels(model_list)
+                ax.tick_params(axis="y", pad=6)
+            else:
+                ax.set_yticks([])
+
+            # Highlight smallest gap per row AND experiments better than baseline
+            for i in range(data.shape[0]):
+                row = data[i]
+                if np.all(np.isnan(row)):
+                    continue
+
+                # Get the model index (accounting for multiple selectors)
+                model_idx = i % len(models)
+                model = models[model_idx]
+                baseline_gap = baseline_gaps.get(model)
+                baseline_id_val = baseline_id_values.get(model)
+
+                j = int(np.nanargmin(np.abs(row)))
+                gap_val = row[j]
+
+                # Get the ID value for this strategy/retention combination
+                run_name = f"{config.sample_selection_benchmark}_{model}_{strategies[j]}_{pct}"
+                metrics_df = list(metrics_dfs.values())[i // len(models)]  # Get corresponding metrics_df
+                strategy_row = metrics_df[metrics_df["Name"] == run_name]
+                strategy_id_val = None
+                if not strategy_row.empty and id_column in strategy_row.columns:
+                    strategy_id_val = strategy_row.iloc[0][id_column]
+
+                # Determine marker color based on conditions
+                marker_color = "black"
+                edge_color = "black"
+
+                # Magenta star if both gap and ID performance are better than baseline
+                if (
+                    baseline_gap is not None
+                    and baseline_id_val is not None
+                    and strategy_id_val is not None
+                    and gap_val < baseline_gap
+                    and strategy_id_val < baseline_id_val
+                ):
+                    marker_color = "magenta"
+                    edge_color = "magenta"
+                # Blue highlight if gap is better than baseline
+                elif gap_val < baseline_gap:
+                    edge_color = highlight_color
+                    marker_color = highlight_color
+
+                if config.add_rectangle_annotation:
+                    ax.add_patch(Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False, edgecolor=edge_color, linewidth=3))
+                ax.plot(j, i, marker="*", ms=25, mec=marker_color, mew=1, c=marker_color, zorder=10)
+
+            # Subtle grid
+            ax.set_xticks(np.arange(-0.5, len(strategies), 1), minor=True)
+            ax.set_yticks(np.arange(-0.5, len(models), 1), minor=True)
+            ax.tick_params(which="minor", bottom=False, left=False)
+
+        # Colorbar
+        if im is not None:
+            cax = fig.add_axes(rect=(0.90, 0.11, 0.03, 0.7))
+            cbar = fig.colorbar(im, cax=cax)
+            cbar.ax.tick_params(labelsize=12)
+            cbar.set_label(f"Gap ({ood_subsplit} - {id_subsplit}) %", fontsize=10)
+
+        # Legend handles to show best strategies
+        legend = [
+            Line2D(
+                [0],
+                [0],
+                marker="*",
+                color="magenta",
+                linestyle="None",
+                markersize=10,
+                label="Better performance and gap then the baseline",
+            ),
+            Line2D(
+                [0],
+                [0],
+                marker="*",
+                color=highlight_color,
+                linestyle="None",
+                markersize=10,
+                label="Better gap than the baseline",
+            ),
+            Line2D(
+                [0],
+                [0],
+                marker="*",
+                color="black",
+                linestyle="None",
+                markersize=10,
+                label="Best of the group, but not better than baseline",
+            ),
+        ]
+
+        # Save figure
+        output_file = output_path / f"{metric}_{id_subsplit}_vs_{ood_subsplit}.png"
+        fig.legend(handles=legend, loc="upper right", bbox_to_anchor=(0.99, 0.99), frameon=False, fontsize=7)
+        fig.suptitle(
+            f"Split Gap — {metric.replace('_', ' ')} ({ood_subsplit} - {id_subsplit})",
+            y=1.02,
+        )
+        plt.tight_layout(rect=(0, 0, 0.9, 1))
+        fig.savefig(output_file, dpi=200, bbox_inches="tight")
+        plt.close(fig)
+
+        log.info("Saved distribution gap heatmaps to %s", output_file)
+
+
 def plot_sample_selection_sweep_heatmap(config: DictConfig, log: Logger, output_path: Path) -> None:
     """Creates heatmaps comparing sample selection sweeps for each (model, split, retention_percentage, metric).
 
@@ -661,6 +886,7 @@ def plot_sample_selection_sweep_heatmap(config: DictConfig, log: Logger, output_
     # If multiple metrics files are available, create heatmaps showing gap to baseline across selectors
     if len(metrics_dataframes) > 1:
         _plot_sample_selection_sweep_heatmap_baseline_gap(config, log, output_path, metrics_dataframes)
+        _plot_sample_selection_sweep_distribution_gap(config, log, output_path, metrics_dataframes)
 
 
 def _plot_distribution_shift_comparison(
@@ -977,7 +1203,6 @@ def run_benchmark_analysis(config: DictConfig, log: Logger, output_path: Path) -
         log.error("Metrics file not found at %s", metrics_filepath)
         return
     metrics_df = pd.read_csv(metrics_filepath)
-
     # Ensure model name and run identifier exists
     if "Name" not in metrics_df.columns:
         log.error("CSV must contain a 'Name' column")
@@ -1053,14 +1278,14 @@ def run_benchmark_analysis(config: DictConfig, log: Logger, output_path: Path) -
         ood_metric=f"brierFDE ({ood_split_name},↓)",
     )
 
-    # Plot grouped bar chart for key metrics comparison (commented out for now)
+    # # Plot grouped bar chart for key metrics comparison (commented out for now)
     metric_pairs = [
         (f"{metric} ({id_split_name},↓)", f"{metric} ({ood_split_name},↓)", metric)
         for metric in config.trajectory_forecasting_metrics
     ]
     _plot_performance_gaps(summary_df, output_path, metric_pairs)
 
-    # Create a grouped bar chart for comprehensive comparison
+    # # Create a grouped bar chart for comprehensive comparison
     key_metrics_display = [
         f"{config.trajectory_forecasting_metrics[0]} ({id_split_name},↓)",
         f"{config.trajectory_forecasting_metrics[0]} ({ood_split_name},↓)",
